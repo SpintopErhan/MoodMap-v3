@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { createClient } from "@supabase/supabase-js";
+import "leaflet/dist/leaflet.css"; // <-- normal import (TypeScript hatası kaybolur)
 
-// Leaflet bileşenlerini dynamic import et
 const MapContainer = dynamic(() => import("react-leaflet").then((mod) => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import("react-leaflet").then((mod) => mod.TileLayer), { ssr: false });
 const Marker = dynamic(() => import("react-leaflet").then((mod) => mod.Marker), { ssr: false });
@@ -25,16 +25,10 @@ type Mood = {
 
 export default function MapPage() {
   const [moods, setMoods] = useState<Mood[]>([]);
-  // Leaflet client-side yüklendiği için any kullanmak zorundayız
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [L, setL] = useState<any>(null);
+  const [L, setL] = useState<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
 
   useEffect(() => {
-    // Leaflet + CSS'i sadece client-side yükle
-    Promise.all([
-      import("leaflet"),
-      import("leaflet/dist/leaflet.css"),
-    ]).then(([leaflet]) => {
+    import("leaflet").then((leaflet) => {
       setL(leaflet.default || leaflet);
     });
   }, []);
