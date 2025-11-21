@@ -25,6 +25,7 @@ type Mood = {
 
 export default function MapPage() {
   const [moods, setMoods] = useState<Mood[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [L, setL] = useState<any>(null);
 
   useEffect(() => {
