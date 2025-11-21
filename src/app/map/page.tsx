@@ -25,6 +25,8 @@ type Mood = {
 
 export default function MapPage() {
   const [moods, setMoods] = useState<Mood[]>([]);
+  // Leaflet client-side yüklendiği için any kullanmak zorundayız
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [L, setL] = useState<any>(null);
 
   useEffect(() => {
