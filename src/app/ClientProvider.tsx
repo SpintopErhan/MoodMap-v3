@@ -9,9 +9,10 @@ export default function ClientProvider({
   children: React.ReactNode;
 }) {
   useEffect(() => {
-    if (sdk.status === "ready") {
-      sdk.actions.ready(); // Splash kapanır, ready hatası yok
-    }
+    // Yeni SDK’da status yok, direkt ready() promise’i var
+    sdk.ready().then(() => {
+      sdk.actions.ready(); // Splash kapanır
+    });
   }, []);
 
   return <>{children}</>;
