@@ -1,19 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
-import { sdk } from "@farcaster/miniapp-sdk";
-
 export default function ClientProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  useEffect(() => {
-    // Yeni SDK’da status yok, direkt ready() promise’i var
-    sdk.ready().then(() => {
-      sdk.actions.ready(); // Splash kapanır
-    });
-  }, []);
-
+  // SDK’nın yeni versiyonunda splash otomatik kapanıyor, hiçbir şey yapmamıza gerek yok!
   return <>{children}</>;
 }
