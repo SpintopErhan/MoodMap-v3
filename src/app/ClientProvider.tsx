@@ -9,24 +9,15 @@ export default function ClientProvider({
   children: React.ReactNode;
 }) {
   useEffect(() => {
-    // SDK ready olduğunda splash'ı kapat (Vercel preview’da bile çalışır)
-    const timer = setInterval(() => {
-      if (sdk.status === "ready") {
-        sdk.actions.ready();
-        clearInterval(timer);
+    // SDK’nın yeni versiyonunda splash otomatik kapanıyor
+    // Ama bazı preview’larda kapanmayabiliyor, o yüzden zorla kapatıyoruz
+    const forceReady = setTimeout(() => {
+      if (typeof (sdk as any).actions?.ready === "function") {
+        (sdk as any).actions.ready();
       }
-    }, 100);
+    }, 3000); // 3 saniye sonra zorla kapat
 
-    // 10 saniye sonra zorla kapat (güvenlik)
-    const force = setTimeout(() => {
-      sdk.actions.ready();
-      clearInterval(timer);
-    }, 10000);
-
-    return () => {
-      clearInterval(timer);
-      clearTimeout(force);
-    };
+    return () => clearTimeout(forceReady);
   }, []);
 
   return <>{children}</>;
