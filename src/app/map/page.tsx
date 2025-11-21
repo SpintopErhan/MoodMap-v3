@@ -1,21 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import dynamic from "next/dynamic";
 import { createClient } from "@supabase/supabase-js";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
 
-// <-- BU KODU EKLE (component dışına)
-if (typeof window === "undefined") {
-  // Server-side render’da hiçbir şey render etme
-  const NullComponent = () => null;
-  export default NullComponent;
-  export const generateStaticParams = () => [];
-  export const dynamic = "force-dynamic";
-  // Buraya kadar, dosyanın geri kalanı çalışmayacak
-  // Bu blok sayesinde Vercel build geçer
-}
+// Leaflet'i dynamic import et, window hatası çıkmasın
+const MapContainer = dynamic(() => import("react-leaflet").then((mod) => mod.MapContainer), { ssr: false });
+const TileLayer = dynamic(() => import("react-leaflet").then((mod) => mod.TileLayer), { ssr: false });
+const Marker = dynamic(() => import("react-leaflet").then((mod) => mod.Marker), { ssr: false });
+const Popup = dynamic(() => import("react-leaflet").then((mod) => mod.Popup), { ssr: false });
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -32,6 +25,15 @@ type Mood = {
 
 export default function MapPage() {
   const [moods, setMoods] = useState<Mood[]>([]);
+  const [L, setL] = useState<any>(null);
+
+  useEffect(() => {
+    // Leaflet sadece client-side'da yüklensin
+    import("leaflet").then((leaflet) => {
+      setL(leaflet.default || leaflet);
+      import("leaflet/dist/leaflet.css");
+    });
+  }, []);
 
   useEffect(() => {
     fetchMoods();
@@ -42,7 +44,11 @@ export default function MapPage() {
     setMoods(data || []);
   };
 
-  // Aynı konum gruplama
+  if (!L) {
+    return <div className="h-screen bg-black flex items-center justify-center text-white text-2xl">Loading map...</div>;
+  }
+
+  // Gruplama
   const groups: Record<string, Mood[]> = {};
   moods.forEach((m) => {
     const key = `${m.lat.toFixed(3)}-${m.lng.toFixed(3)}`;
@@ -54,7 +60,7 @@ export default function MapPage() {
     if (count === 1) {
       return L.divIcon({
         html: `<div style="font-size: 48px; filter: drop-shadow(0 0 12px black);">${emoji}</div>`,
-        className: "custom-emoji-marker",
+        className: "",
         iconSize: [48, 48],
         iconAnchor: [24, 48],
       });
@@ -69,7 +75,7 @@ export default function MapPage() {
           </div>
         </div>
       `,
-      className: "custom-emoji-marker",
+      className: "",
       iconSize: [80, 80],
       iconAnchor: [40, 70],
     });
@@ -87,9 +93,8 @@ export default function MapPage() {
         dragging={false}
         scrollWheelZoom={false}
         doubleClickZoom={false}
-        touchZoom={false}
       >
-        <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" attribution="© Carto" />
+        <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
 
         {Object.values(groups).map((group) => {
           const first = group[0];
@@ -114,7 +119,7 @@ export default function MapPage() {
                       <div key={m.id} className="text-center">
                         <div className="text-7xl mb-3">{m.emoji}</div>
                         {m.status && (
-                          <div className="text-xs text-gray-400 italic mt-2 break-words">
+                          <div className="text-xs text-gray-400 italic mt-2 break-words max-w-32">
                             &quot;{m.status}&quot;
                           </div>
                         )}
@@ -128,7 +133,6 @@ export default function MapPage() {
         })}
       </MapContainer>
 
-      {/* Refresh Button */}
       <button
         onClick={fetchMoods}
         className="absolute top-4 right-4 z-10 bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded-full font-bold shadow-2xl transition-all"
@@ -136,7 +140,6 @@ export default function MapPage() {
         Refresh
       </button>
 
-      {/* Update Status Button */}
       <button
         onClick={() => (window.location.href = "/")}
         className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 px-10 py-5 rounded-full font-bold text-xl shadow-2xl transition-all"
