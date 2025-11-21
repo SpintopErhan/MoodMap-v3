@@ -27,42 +27,47 @@ export default function Home() {
   const [todayPosted, setTodayPosted] = useState(false);
 
   const fid = user?.farcaster?.fid;
-  const username = user?.farcaster?.username || "anon";
 
   useEffect(() => {
     if (authenticated && fid) {
-      navigator.geolocation.getCurrentPosition(pos => setLocation({lat: pos.coords.latitude, lng: pos.coords.longitude}));
+      navigator.geolocation.getCurrentPosition(
+        pos => setLocation({lat: pos.coords.latitude, lng: pos.coords.longitude}),
+        () => alert("Location permission needed!"),
+        { enableHighAccuracy: true }
+      );
       checkToday();
     }
-  }, [authenticated, fid]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authenticated, fid]); // checkToday dependency uyarısını susturduk
 
   const checkToday = async () => {
+    if (!fid) return;
     const today = new Date().toISOString().split("T")[0];
     const { data } = await supabase.from("moods").select("id").eq("fid", fid).eq("date", today);
     if (data?.length) setTodayPosted(true);
   };
 
   const submit = async () => {
-  if (!selected || !location || !fid) return;
-  setLoading(true);
+    if (!selected || !location || !fid) return;
+    setLoading(true);
 
-  const { error } = await supabase.from("moods").insert({
-    emoji: selected,           // <-- mood yerine emoji
-    status: note.slice(0, 24) || null,  // <-- note yerine status
-    lat: location.lat,
-    lng: location.lng,
-  });
+    const { error } = await supabase.from("moods").insert({
+      emoji: selected,
+      status: note.slice(0, 24) || null,
+      lat: location.lat,
+      lng: location.lng,
+    });
 
-  setLoading(false);
+    setLoading(false);
 
-  if (error) {
-    console.error("Supabase error:", error);
-    alert("Hata: " + error.message);
-  } else {
-    alert("Mood added to the map! 🌍");
-    window.location.href = "/map";
-  }
-};
+    if (error) {
+      console.error("Supabase error:", error);
+      alert("Hata: " + error.message);
+    } else {
+      alert("Mood added to the map! 🌍");
+      window.location.href = "/map";
+    }
+  };
 
   if (!ready || !authenticated) return (
     <div className="min-h-screen flex items-center justify-center bg-[#0f0f23]">
@@ -74,7 +79,7 @@ export default function Home() {
 
   if (todayPosted) return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-8 bg-[#0f0f23]">
-      <p className="text-3xl text-center">You've already shared your mood today!</p>
+      <p className="text-3xl text-center">You&apos;ve already shared your mood today!</p>
       <a href="/map" className="bg-purple-600 px-12 py-6 rounded-full text-2xl font-bold shadow-2xl">View Map</a>
     </div>
   );
