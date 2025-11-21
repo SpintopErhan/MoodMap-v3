@@ -6,7 +6,16 @@ import { createClient } from "@supabase/supabase-js";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-if (typeof window === "undefined") return null; // <-- BU SATIRI EKLE
+// <-- BU KODU EKLE (component dışına)
+if (typeof window === "undefined") {
+  // Server-side render’da hiçbir şey render etme
+  const NullComponent = () => null;
+  export default NullComponent;
+  export const generateStaticParams = () => [];
+  export const dynamic = "force-dynamic";
+  // Buraya kadar, dosyanın geri kalanı çalışmayacak
+  // Bu blok sayesinde Vercel build geçer
+}
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
