@@ -1,9 +1,25 @@
 {
-  "accountAssociations": [
-    {
-      "account": "fc_fid:482011",
-      "signatureType": "eip712",
-      "signature": "0x8e8f8c8d8b8a8987868584838281807f7e7d7c7b7a797877767574737271706f6e6d6c6b6a696867666564636261605f5e5d5c5b5a595857565554535251504f4e4d4c4b4a494847464544434241403f3e3d3c3b3a393837363534333231302f2e2d2c2b2a292827262524232221201f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100"
-    }
-  ]
+  "frame": {
+    "name": "MoodMap",
+    "tags": [
+      "\"mood\"",
+      "map\"",
+      "emoji\"",
+      "location\"",
+      "social"
+    ],
+    "homeUrl": "https://mood-map-v3-git-main-erhans-projects-9be529ed.vercel.app",
+    "iconUrl": "https://mood-map-v3-git-main-erhans-projects-9be529ed.vercel.app/icon.png",
+    "version": "1",
+    "subtitle": "Daily mood on global map",
+    "description": "Share your daily mood with emojis on the world map.",
+    "splashImageUrl": "https://mood-map-v3-git-main-erhans-projects-9be529ed.vercel.app/splashimage.png",
+    "primaryCategory": "social",
+    "splashBackgroundColor": "#FDFDF8"
+  },
+  "accountAssociation": {
+    "header": "eyJmaWQiOjQ4MjAxMSwidHlwZSI6ImF1dGgiLCJrZXkiOiIweGExREFERWIwZDFmYWUyQTExQmNjMmQ3NWYzY0ZhYjA4ODQyYUVCYTUifQ",
+    "payload": "eyJkb21haW4iOiJtb29kLW1hcC12My1naXQtbWFpbi1lcmhhbnMtcHJvamVjdHMtOWJlNTI5ZWQudmVyY2VsLmFwcCJ9",
+    "signature": "KQD0cxeQidu/RE1jQmBAA10zeFNVOCn6fPtFJcA3Hil0wsGSg9cGzBpY4YNiL1iYzbcaJet+EoFoUletdeqwUxw="
+  }
 }
