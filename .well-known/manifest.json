@@ -1,0 +1,16 @@
+{
+  "miniapp": {
+    "version": "1",
+    "name": "MoodMap",
+    "subtitle": "Daily mood on global map",
+    "description": "Share your daily mood with emojis on the world map. One per day, location-based!",
+    "iconUrl": "https://mood-map-v3-git-main-erhans-projects-9be529ed.vercel.app/icon.png",
+    "homeUrl": "https://mood-map-v3-git-main-erhans-projects-9be529ed.vercel.app",
+    "splashImageUrl": "https://mood-map-v3-git-main-erhans-projects-9be529ed.vercel.app/splashimage.png",
+    "splashBackgroundColor": "#FDFDF8",
+    "primaryCategory": "social",
+    "tags": ["mood", "map", "emoji", "location", "social"],
+    "requiredChains": [],
+    "requiredCapabilities": ["actions.signIn"]
+  }
+}
