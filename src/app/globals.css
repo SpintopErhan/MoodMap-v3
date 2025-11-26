@@ -20,6 +20,49 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* ======== Leaflet Popup Stilini Geçersiz Kılma ======== */
+/* Bu CSS, harita üzerindeki emojilere tıklandığında açılan pop-up'ın
+   varsayılan beyaz arka planını ve 'X' kapatma butonu okunu kaldırır. */
+.leaflet-popup-pane .leaflet-popup-content-wrapper {
+  background: transparent; /* Varsayılan beyaz arka planı kaldır */
+  color: #fff;            /* Popup içindeki metin rengi, koyu tema ile uyumlu */
+  border-radius: 1rem;   /* Kendi içindeki div'in rounded-3xl stilini eşleştirebiliriz */
+  padding: 0;            /* İç dolguyu kaldır, içerik div'i kendi padding'ini kullanacak */
+  box-shadow: none;      /* Varsayılan gölgeyi kaldır */
+}
+
+.leaflet-popup-pane .leaflet-popup-content {
+  padding: 0;
+  margin: 0;
+  width: 100% !important; /* Popup içeriğinin genişliğini tamamen kaplamasını sağlar */
+}
+
+/* Pop-up'ın küçük ok/ucu */
+.leaflet-popup-pane .leaflet-popup-tip-container {
+  display: none; /* Ok işaretini tamamen kaldırır */
+}
+
+/* ==================================================== */
+
+/* ======== Yeni Mood Marker Stili ======== */
+/* Harita üzerindeki emojilerin yuvarlak daire içinde görünmesini sağlar */
+.mood-marker-icon {
+  width: 55px; /* Dairenin genişliği */
+  height: 55px; /* Dairenin yüksekliği */
+  border-radius: 50%; /* Yuvarlak şekil verir */
+  background-color: rgba(59, 59, 59, 0.7); /* Siyah, %70 opak arka plan */
+  border: 5px solid #a78bfa; /* MOR DIŞ HALKA KALINLIĞI ARTIRILDI: 3px -> 4px */
+  display: flex; /* Emojiyi ortalamak için Flexbox kullanır */
+  align-items: center; /* Dikeyde ortalama */
+  justify-content: center; /* Yatayda ortalama */
+  line-height: 0; /* DİKEY HİZALAMAYI DÜZELTMEK İÇİN EKLENDİ */
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3); /* Hafif bir gölge ekler */
+  box-sizing: border-box; /* Padding ve border'ın genişliğe dahil olmasını sağlar */
+  user-select: none; /* Metin seçimi engellendi */
+  text-align: center; /* Emoji'nin daha iyi ortalanması için */
+}
+/* ======================================= */
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

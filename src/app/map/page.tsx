@@ -4,13 +4,17 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import { createClient } from "@supabase/supabase-js";
-import { Navigation, Loader2 } from "lucide-react";
+import { Navigation, Loader2, MapPin } from "lucide-react"; 
 import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import { toast, Toaster } from 'react-hot-toast'; 
 
-import MoodUpdateOverlay from "@/components/MoodUpdateOverlay";
+// Bileşenlerin importları. tsconfig.json'daki paths ayarı ( @/*": ["./src/*"] ) dikkate alınmıştır.
+import MoodUpdateOverlay from "@/components/MoodUpdateOverlay"; 
+import { Button } from "@/components/Button"; 
+import { MoodFeed } from "@/components/MoodFeed"; 
 
+// Leaflet dinamik importları
 const MapContainer = dynamic(() => import("react-leaflet").then((mod) => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import("react-leaflet").then((mod) => mod.TileLayer), { ssr: false });
 const Marker = dynamic(() => import("react-leaflet").then((mod) => mod.Marker), { ssr: false });
@@ -19,68 +23,95 @@ const Popup = dynamic(() => import("react-leaflet").then((mod) => mod.Popup), { 
 import { useMap } from "react-leaflet"; 
 
 // Supabase client created with anonymous key.
-// No special session is needed for database operations, as RLS policies are public.
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Mood type: fid is now NOT NULL, user_id (Privy DID) is stored for reference
-type Mood = {
+// ======== MOOD TİPİ ========
+export type Mood = { 
   id: string;
   emoji: string;
   status: string | null;
   lat: number;
   lng: number;
-  fid: number; // Farcaster ID: Unique and cannot be null, key for upsert
-  user_id: string; // Privy DID: Stored for reference
+  fid: number; 
+  user_id: string; 
   created_at: string;
 };
+// ==========================
 
-// FocusUserLocation bileşeni güncellendi: 'trigger' prop'u eklendi
+// Leaflet'ın varsayılan ikonlarını geçersiz kılmak için gerekli (Next.js ile kullanırken)
+// Bu kod satırı global leaflet.css'in doğru yüklenmesini sağlar
+// Normalde bu L.Icon.Default.mergeOptions ile yapılırdı ama dinamik import nedeniyle burada L'yi kullanmadan yapılır.
+// Eğer bu hata veriyorsa, app/layout.tsx veya benzeri bir root dosyada bunu manuel olarak Leaflet importu sonrası deneyebilirsiniz.
+// Ancak bizim divIcon yaklaşımımızla varsayılan ikonlar yerine özel ikonlar kullandığımız için bu kısım artık daha az kritik.
+// delete (L.Icon.Default.prototype as any)._get  ; // Bu satır L tanımlı olmadığı için sorun çıkarabilir, bu yüzden kaldırıldı.
+
+// LocationMarker bileşeni KULLANICI İSTEĞİ ÜZERİNE KALDIRILDI
+/*
+const LocationMarker: React.FC<{ location: { lat: number; lng: number } | null, setLocation: (latlng: any) => void, userLocationIcon: any }> = ({ location, setLocation, userLocationIcon }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    map.locate().on('locationfound', function (e) {
+      setLocation(e.latlng);
+      map.flyTo(e.latlng, map.getZoom());
+    });
+    map.locate().on('locationerror', function (e) {
+        console.error("Location error:", e.message);
+    });
+  }, [map, setLocation]);
+
+  return location === null || !userLocationIcon ? null : (
+    <Marker position={location} icon={userLocationIcon}>
+      <Popup>Buradasınız</Popup>
+    </Marker>
+  );
+};
+*/
+
+// Harita odaklansın diye
 const FocusUserLocation: React.FC<{ location: { lat: number; lng: number }, trigger: number }> = ({ location, trigger }) => {
   const map = useMap();
 
-  // useEffect'in bağımlılıklarına 'trigger' eklendi
   useEffect(() => {
-    // Sadece trigger değeri değiştiğinde (veya konum değiştiğinde) veya başlangıçta çalışır
     if (map && location) {
       (map as any).setView([location.lat, location.lng], 14, { animate: true });
     }
-  }, [map, location, trigger]); // trigger'ı bağımlılık olarak ekledik
+  }, [map, location, trigger]); 
 
   return null;
 };
 
 export default function MapPage() {
   const router = useRouter();
-  // ESKİ: const { ready, authenticated, user, login } = usePrivy();
-  const { ready, authenticated, user } = usePrivy(); // 'login' kaldırıldı
+  const { ready, authenticated, user } = usePrivy(); 
 
   const [moods, setMoods] = useState<Mood[]>([]);
-  const [L, setL] = useState<any>(null); 
+  const [L, setL] = useState<any>(null); // Leaflet objesini tutar
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locationError, setLocationError] = useState(false);
-  const [focusTrigger, setFocusTrigger] = useState(0); // shouldFocus yerine yeni state
+  const [focusTrigger, setFocusTrigger] = useState(0); 
   const [showMoodOverlay, setShowMoodOverlay] = useState(false);
   const [loading, setLoading] = useState(false);
   
+  const [isMoodFeedOpen, setIsMoodFeedOpen] = useState(false); 
+  
   const initialMoodCheckPerformed = useRef(false); 
 
-  const fid = user?.farcaster?.fid; // Farcaster ID (number | undefined)
-  const privyUserId = user?.id; // Privy's DID (string | undefined)
+  const fid = user?.farcaster?.fid; 
+  const privyUserId = user?.id; 
 
-  // Redirect if Privy authentication status changes
   useEffect(() => {
     if (ready && !authenticated) {
       router.replace("/");
     }
   }, [ready, authenticated, router]);
 
-  // Function to fetch moods from Supabase
   const fetchMoods = useCallback(async (focusOnUserAfterFetch = false) => {
     try {
-      const { data, error } = await supabase.from("moods").select("*");
+      const { data, error } = await supabase.from("moods").select("*").order('created_at', { ascending: false }); 
       if (error) {
         console.error("Error fetching moods:", error); 
         toast.error("Failed to load moods."); 
@@ -89,19 +120,17 @@ export default function MapPage() {
       }
       setMoods(data || []);
 
-      // Check if the user has previously entered a mood (only for the first time)
       if (!initialMoodCheckPerformed.current && authenticated && fid !== undefined) {
         const hasUserMood = data.some(m => m.fid === fid);
         if (!hasUserMood) {
           setShowMoodOverlay(true);
           if (userLocation) {
-            setFocusTrigger(prev => prev + 1); // shouldFocus yerine focusTrigger'ı artır
+            setFocusTrigger(prev => prev + 1); 
           }
         }
         initialMoodCheckPerformed.current = true; 
       }
 
-      // focusOnUserAfterFetch durumunda da focusTrigger'ı artır
       if (focusOnUserAfterFetch && userLocation) {
         setFocusTrigger(prev => prev + 1);
       }
@@ -111,17 +140,19 @@ export default function MapPage() {
     }
   }, [authenticated, fid, userLocation]);
 
-  // Get Leaflet and user's location when the page loads
   useEffect(() => {
     Promise.all([import("leaflet"), import("leaflet/dist/leaflet.css")]).then(([leaflet]) => {
       setL(leaflet.default || leaflet);
     });
 
+    // Kullanıcının mevcut konumunu almak için navigator.geolocation kullanılır.
+    // LocationMarker kaldırıldığından, harita üzerinde "Buradasınız" ikonu görünmeyecek,
+    // ancak konum bilgisi hala alınacak ve harita bu konuma odaklanabilir.
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setLocationError(false);
-        setFocusTrigger(prev => prev + 1); // Konum bulunduğunda haritayı odaklamak için trigger'ı artır
+        setFocusTrigger(prev => prev + 1); 
       },
       (err) => {
         console.error("Location permission denied:", err.message); 
@@ -132,15 +163,13 @@ export default function MapPage() {
     );
   }, []); 
 
-  // Fetch moods when authentication status changes or FID is available
   useEffect(() => {
     if (ready && authenticated && fid !== undefined) {
       fetchMoods(); 
     }
   }, [ready, authenticated, fid, fetchMoods]); 
 
-  // Using upsert for new mood entry/update operation
-  const handleSubmitMood = async (emoji: string, status: string) => {
+  const handleSubmitMood = async (emoji: string, status: string) => { 
     if (!emoji || !userLocation || fid === undefined || privyUserId === undefined) { 
       toast.error("Please select an emoji, grant location access, and log in with Farcaster.");
       return;
@@ -163,11 +192,12 @@ export default function MapPage() {
       if (upsertError) {
         console.error("Upsert Error (Supabase response):", upsertError); 
         toast.error("Failed to share mood: " + upsertError.message);
+      } else {
+        toast.success("Vibe successfully shared! 🌍");
       }
-
-      toast.success("Vibe successfully shared! 🌍");
+      
       fetchMoods(true); 
-      setShowMoodOverlay(false);
+      setShowMoodOverlay(false); 
     } catch (error: any) {
       console.error("Unexpected error during mood operation:", error); 
       toast.error("An error occurred: " + error.message);
@@ -176,7 +206,20 @@ export default function MapPage() {
     }
   };
 
-  // Loading screen conditions
+  const handleMapAction = () => {
+    if (userLocation) {
+      setFocusTrigger(prev => prev + 1); 
+    }
+    setShowMoodOverlay(false);
+    setIsMoodFeedOpen(false);
+    toast.success("Map focused on your location.");
+  };
+
+  const handleToggleMoodFeed = () => {
+    setIsMoodFeedOpen((prev) => !prev);
+    if (showMoodOverlay) setShowMoodOverlay(false);
+  };
+
   if (!ready || !authenticated || fid === undefined || privyUserId === undefined) {
     return (
         <div className="min-h-screen bg-gradient-to-b from-[#0f0f23] to-[#1a1a2e] flex flex-col items-center justify-center p-8 text-white">
@@ -191,7 +234,6 @@ export default function MapPage() {
     );
   }
 
-  // "Loading map" message if Leaflet is not yet loaded
   if (!L) return <div className="h-screen bg-black flex items-center justify-center text-white text-2xl">Loading map...</div>;
 
   const groups: Record<string, Mood[]> = {};
@@ -201,38 +243,50 @@ export default function MapPage() {
     groups[key].push(m);
   });
 
+  // Kullanıcının mevcut konum ikonu için sabit bir ikon tanımlaması KULLANICI İSTEĞİ ÜZERİNE KALDIRILDI
+  /*
+  const userLocationIcon = L.divIcon({
+    html: `<div class="mood-marker-icon" style="font-size: 2.5rem; filter: drop-shadow(0 0 12px rgba(168,85,247,0.7));">&#128205;</div>`, // '📍' emoji code
+    className: '', // Kendi stilimiz .mood-marker-icon'da olduğu için Leaflet'ın varsayılanlarını devre dışı bırak
+    iconSize: [52, 52], // Dairenin boyutuna göre
+    iconAnchor: [26, 26], // Dairenin merkezini işaret et
+  });
+  */
+
   const createIcon = (emoji: string, count: number) => {
     if (!L) return undefined; 
 
-    const isCurrentUserSingleMood = count === 1 && moods.find(m => m.fid === fid && m.emoji === emoji);
+    const moodCircleSize = 52; // Tüm özel marker'lar için tutarlı boyut
+    const iconAnchorOffset = moodCircleSize / 2; // Marker'ı merkezine hizalar
+
+    // Marker'ın mevcut kullanıcıya ait bir ruh hali olup olmadığını belirle
+    const isCurrentUserSingleMood = count === 1 && moods.some(m => m.fid === fid && m.emoji === emoji);
+    const filterShadow = `drop-shadow(0 0 12px ${isCurrentUserSingleMood ? 'rgba(168,85,247,0.7)' : 'black'})`;
 
     if (count === 1) {
+      // Tekli Mood: Yuvarlak stil için .mood-marker-icon sınıfını kullanır
+      // Emoji'nin boyutunu doğrudan HTML içinde ayarlarız (2.5rem olarak güncellendi).
       return L.divIcon({
-        html: `<div style="font-size: 48px; filter: drop-shadow(0 0 12px ${isCurrentUserSingleMood ? 'rgba(168,85,247,0.7)' : 'black'});">${emoji}</div>`,
-        className: "",
-        iconSize: [48, 48],
-        iconAnchor: [24, 48],
+        html: `<div class="mood-marker-icon" style="font-size: 2rem; ${filterShadow}">${emoji}</div>`,
+        className: "", // Leaflet'ın varsayılan className'ini devre dışı bırakır
+        iconSize: [moodCircleSize, moodCircleSize],
+        iconAnchor: [iconAnchorOffset, iconAnchorOffset],
       });
     }
 
+    // Gruplanmış Mood'lar: Sayıyı .mood-marker-icon dairesinin içine yerleştirir.
+    // Gruplanmış ikonlar için gölgeyi siyah yaparız.
     return L.divIcon({
-      html: `
-        <div style="position: relative;">
-          <div style="font-size: 48px; filter: drop-shadow(0 0 12px black);">${emoji}</div>
-          <div style="position: absolute; top: -18px; right: -22px; background:#a855f7; color:white; font-weight:bold; font-size:22px; width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:5px solid black; box-shadow: 0 0 25px #a855f7;">
-            ${count}
-          </div>
-        </div>
-      `,
-      className: "",
-      iconSize: [90, 90],
-      iconAnchor: [45, 75],
+      html: `<div class="mood-marker-icon" style="font-size: 1.8rem; font-weight: bold; filter: drop-shadow(0 0 12px black);">${count}</div>`, // Kalın metinle sayı
+      className: "", // Leaflet'ın varsayılan className'ini devre dışı bırakır
+      iconSize: [moodCircleSize, moodCircleSize],
+      iconAnchor: [iconAnchorOffset, iconAnchorOffset],
     });
   };
 
   return (
     <div className="h-screen relative bg-black">
-      <Toaster position="bottom-center" /> 
+      <Toaster position="top-center" /> 
 
       <div className="absolute inset-0 z-0">
         <MapContainer
@@ -248,13 +302,15 @@ export default function MapPage() {
         >
           <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" noWrap={true} />
 
-          {/* FocusUserLocation bileşeni 'focusTrigger' prop'u ile render ediliyor */}
           {userLocation && <FocusUserLocation location={userLocation} trigger={focusTrigger} />}
+
+          {/* LocationMarker bileşeni KULLANICI İSTEĞİ ÜZERİNE KALDIRILDI */}
+          {/* <LocationMarker setLocation={setUserLocation} location={userLocation} userLocationIcon={userLocationIcon} /> */}
 
           {Object.entries(groups).map(([groupKey, group]) => {
             const first = group[0]; 
             const currentUserMoodInGroup = group.find(m => m.fid === fid);
-            const mainEmoji = currentUserMoodInGroup ? currentUserMoodInGroup.emoji : group[0].emoji;
+            const mainEmoji = currentUserMoodInGroup ? currentUserMoodInGroup.emoji : group[0].emoji; 
             const count = group.length; 
 
             return (
@@ -263,7 +319,8 @@ export default function MapPage() {
                 position={[first.lat, first.lng]}
                 icon={L && L.divIcon ? createIcon(mainEmoji, count) : undefined}
               >
-                <Popup className="custom-popup">
+                {/* ======== Popup'a offset={[0, -20]} eklendi ======== */}
+                <Popup closeButton={false} className="custom-popup" offset={[0, -20]}> 
                   <div className="bg-[#0f0f23] p-6 rounded-3xl border border-purple-600 shadow-2xl min-w-[280px]">
                     {count > 1 && (
                       <div className="text-center text-purple-400 font-bold mb-4 text-xl">
@@ -296,39 +353,68 @@ export default function MapPage() {
         </MapContainer>
       </div>
 
-      <div className="absolute inset-0 z-50 pointer-events-none">
-        <button
-          onClick={() => fetchMoods(true)} 
-          className="absolute top-4 right-4 z-50 bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded-full font-bold shadow-2xl transition-all pointer-events-auto text-white"
+      {/* ======== SABİT ALT BUTONLAR ALANI ======== */}
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 z-[1000]">
+        <Button
+          onClick={handleMapAction}
+          variant="secondary" 
+          className="px-6 py-3 text-lg rounded-full backdrop-blur-md bg-slate-800/70 border border-slate-700 text-white shadow-xl hover:bg-slate-700/80 transition-colors"
         >
-          Refresh
-        </button>
+          <MapPin size={20} className="mr-2" /> Map 
+        </Button>
 
-        {userLocation && (
-          <button
-            onClick={() => setFocusTrigger(prev => prev + 1)} // Buton tıklandığında focusTrigger'ı artır
-            className="absolute bottom-24 right-4 z-50 bg-purple-600 hover:bg-purple-700 p-4 rounded-full shadow-2xl transition-all pointer-events-auto text-white"
-          >
-            <Navigation size={24} />
-          </button>
-        )}
-
-        <button
-          onClick={() => setShowMoodOverlay(true)}
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 z-50 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 px-10 py-5 rounded-full font-bold text-xl shadow-2xl transition-all pointer-events-auto text-white"
+        <Button
+          onClick={() => setShowMoodOverlay(true)} 
+          className="w-16 h-16 rounded-full text-3xl font-bold shadow-2xl bg-gradient-to-br from-purple-500 to-indigo-600 text-white transform hover:scale-105 transition-transform duration-200 focus:outline-none focus:ring-4 focus:ring-purple-500 focus:ring-opacity-50"
         >
-          Update Mood
+          +
+        </Button>
+
+        <Button
+          onClick={handleToggleMoodFeed}
+          variant="secondary"
+          className="px-6 py-3 text-lg rounded-full backdrop-blur-md bg-slate-800/70 border border-slate-700 text-white shadow-xl hover:bg-slate-700/80 transition-colors relative"
+        >
+          Feeds 
+          {moods.length > 0 && (
+            <span className="ml-2 text-xs bg-purple-600 text-white px-2 py-0.5 rounded-full absolute -top-2 -right-2 transform translate-x-1/2 -translate-y-1/2">
+              {moods.length}
+            </span>
+          )}
+        </Button>
+      </div>
+      {/* ==================================================================== */}
+
+      {/* Mood Güncelleme Overlay'i (Pop-up kart olarak konumlandırılıyor) */}
+      {showMoodOverlay && (
+        <>
+          <div className="fixed inset-0 bg-transparent z-[1040]" onClick={() => setShowMoodOverlay(false)}></div>
+          <MoodUpdateOverlay
+            onClose={() => setShowMoodOverlay(false)}
+            onSubmit={handleSubmitMood} 
+            locationError={locationError || userLocation === null}
+            loading={loading}
+            className="fixed bottom-32 left-1/2 -translate-x-1/2 z-[1050] max-w-sm w-[calc(100%-2rem)] md:max-w-md" 
+          />
+        </>
+      )}
+
+      {/* ======== MOOD FEED (ALTTAN KAYAN PANEL) ======== */}
+      <div
+        className={`fixed inset-x-0 bottom-0 max-h-[80%] h-2/3 md:h-1/2 bg-slate-900/95 backdrop-blur-xl z-[990]
+                    transform transition-transform duration-500 ease-in-out rounded-t-3xl
+                    ${isMoodFeedOpen ? 'translate-y-0' : 'translate-y-full'}`}
+      >
+        <MoodFeed moods={moods} /> 
+        <button
+          onClick={() => setIsMoodFeedOpen(false)}
+          className="absolute top-2 right-4 text-slate-400 hover:text-white transition-colors text-xl font-bold z-10"
+          aria-label="Close Feeds" 
+        >
+          &times;
         </button>
       </div>
-
-      {showMoodOverlay && (
-        <MoodUpdateOverlay
-          onClose={() => setShowMoodOverlay(false)}
-          onSubmit={handleSubmitMood}
-          locationError={locationError || userLocation === null}
-          loading={loading}
-        />
-      )}
+      {/* ==================================================== */}
     </div>
   );
 }
