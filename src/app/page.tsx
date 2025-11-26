@@ -1,7 +1,8 @@
 // app/page.tsx
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+// ESKİ: import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react"; // 'useRef' kaldırıldı
 import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";

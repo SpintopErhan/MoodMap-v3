@@ -54,7 +54,8 @@ const FocusUserLocation: React.FC<{ location: { lat: number; lng: number }, trig
 
 export default function MapPage() {
   const router = useRouter();
-  const { ready, authenticated, user, login } = usePrivy();
+  // ESKİ: const { ready, authenticated, user, login } = usePrivy();
+  const { ready, authenticated, user } = usePrivy(); // 'login' kaldırıldı
 
   const [moods, setMoods] = useState<Mood[]>([]);
   const [L, setL] = useState<any>(null); 
