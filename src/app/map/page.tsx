@@ -4,7 +4,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import { createClient } from "@supabase/supabase-js";
-import { Navigation, Loader2, MapPin } from "lucide-react"; 
+import { Loader2, MapPin } from "lucide-react"; 
 import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import { toast, Toaster } from 'react-hot-toast'; 
