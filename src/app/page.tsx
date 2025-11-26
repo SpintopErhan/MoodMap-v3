@@ -1,106 +1,130 @@
+// app/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { usePrivy } from "@privy-io/react-auth";
+import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { Loader2 } from "lucide-react";
+// import { Toaster } from 'react-hot-toast'; // Eğer layout.tsx içinde yoksa bu satırı ve <Toaster /> bileşenini aktif edin
 
+// Supabase client created with anonymous key.
+// No special session is needed for database operations, as RLS policies are public.
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-const moods = [
-  "🤩","😍","🥰","😘","😊","🙂","🤗","🤔","😐","😑","🙄","😏","😣","😥","😮","🤐","😯","😪","😫","🥱",
-  "😴","😌","😛","😜","😝","🤤","😒","😓","😔","😕","🙃","🤑","😲","☹️","🙁","😖","😞","😟","😤","😢",
-  "😭","😦","😧","😨","😩","🤯","😬","😰","😱","🥵","🥶","😳","🤪","😵","🥴","😠","😡","🤬","😷","🤒",
-  "🤕","🤢","🤮","🤧","😇","🥺","🤠","🥳","😎","🤓","🧐","😋","😚","😙","🥲","😈","👿","💀","☠️","👻",
-  "👽","🤖","💩","😺","😸","😹","😻","😼","😽","🙀","😿","😾","🙈","🙉","🙊","❤️","💔","💕","💞","💓","💗","💖"
-];
-
 export default function Home() {
+  const router = useRouter();
   const { ready, authenticated, user, login } = usePrivy();
-  const [selected, setSelected] = useState("");
-  const [note, setNote] = useState("");
-  const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [todayPosted, setTodayPosted] = useState(false);
+  const [loadingInitialCheck, setLoadingInitialCheck] = useState(true); // Loading state for initial check
+  
+  const fid = user?.farcaster?.fid; // Farcaster ID (number | undefined)
+  const privyUserId = user?.id; // Privy's DID (string | undefined) - Only available if authenticated in Privy
 
-  const fid = user?.farcaster?.fid;
-
+  // Main useEffect for mood check and redirection
   useEffect(() => {
-    if (authenticated && fid) {
-      navigator.geolocation.getCurrentPosition(
-        pos => setLocation({lat: pos.coords.latitude, lng: pos.coords.longitude}),
-        () => alert("Location permission needed!"),
-        { enableHighAccuracy: true }
-      );
-      checkToday();
+    // If Privy is not ready or user is not authenticated, we wait.
+    if (!ready || !authenticated) {
+      setLoadingInitialCheck(false); // If ready and unauthenticated, loading is done
+      return;
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authenticated, fid]); // checkToday dependency uyarısını susturduk
 
-  const checkToday = async () => {
-    if (!fid) return;
-    const today = new Date().toISOString().split("T")[0];
-    const { data } = await supabase.from("moods").select("id").eq("fid", fid).eq("date", today);
-    if (data?.length) setTodayPosted(true);
-  };
-
-  const submit = async () => {
-    if (!selected || !location || !fid) return;
-    setLoading(true);
-
-    const { error } = await supabase.from("moods").insert({
-      emoji: selected,
-      status: note.slice(0, 24) || null,
-      lat: location.lat,
-      lng: location.lng,
-    });
-
-    setLoading(false);
-
-    if (error) {
-      console.error("Supabase error:", error);
-      alert("Hata: " + error.message);
-    } else {
-      alert("Mood added to the map! 🌍");
-      window.location.href = "/map";
+    // If authenticated in Privy but Farcaster FID is missing,
+    // we'll need to prompt the user to connect Farcaster.
+    // In this case, we don't perform a mood check.
+    if (authenticated && fid === undefined) {
+      setLoadingInitialCheck(false);
+      return;
     }
-  };
 
-  if (!ready || !authenticated) return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0f0f23]">
-      <button onClick={login} className="bg-purple-600 hover:bg-purple-700 px-12 py-6 rounded-full text-2xl font-bold shadow-2xl">
-        Sign in with Farcaster
-      </button>
-    </div>
-  );
+    // If Farcaster FID is available, start the mood check
+    if (authenticated && fid !== undefined) {
+      const checkExistingMoodAndRedirect = async () => {
+        setLoadingInitialCheck(true); // Activate loading state while checking
+        try {
+          // Check for existing mood using FID
+          const { data } = await supabase
+            .from("moods")
+            .select("id") // Only fetch ID, no need for full data
+            .eq("fid", fid) // Search for mood by FID
+            .limit(1);
 
-  if (todayPosted) return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-8 bg-[#0f0f23]">
-      <p className="text-3xl text-center">You&apos;ve already shared your mood today!</p>
-      <a href="/map" className="bg-purple-600 px-12 py-6 rounded-full text-2xl font-bold shadow-2xl">View Map</a>
-    </div>
-  );
+          // If the user has an existing mood, redirect to the map
+          if (data && data.length > 0) {
+            router.replace("/map"); // replace to not add to browser history
+          } else {
+            // If no mood exists, continue to show the initial mood entry UI on the home page
+            setLoadingInitialCheck(false);
+          }
+        } catch (e: any) {
+          // On error, loading is done and stay on the home page
+          console.error("Error during mood check:", e); 
+          setLoadingInitialCheck(false);
+        }
+      };
+      checkExistingMoodAndRedirect();
+    }
+  }, [ready, authenticated, fid, router]); // Dependency array updated
+
+  // Loading screen
+  // Show if Privy is not ready, or if the initial check is ongoing.
+  // Or if Privy is ready and authenticated but PrivyUserId (needed for Farcaster ID) is not yet available.
+  if (!ready || loadingInitialCheck || (authenticated && fid === undefined && privyUserId === undefined)) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-[#0f0f23] to-[#1a1a2e] flex flex-col items-center justify-center p-8 text-white">
+        <Loader2 className="animate-spin text-purple-400 w-16 h-16 mb-4" />
+        <p className="text-xl text-center">Loading...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#0f0f23] p-6 flex flex-col">
-      <h1 className="text-5xl font-bold text-center mb-10 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-        How is your mood today?
-      </h1>
-      <div className="grid grid-cols-6 gap-4 mb-8 overflow-y-auto max-h-[60vh]">
-        {moods.map(e => (
-          <button key={e} onClick={() => setSelected(e)} className={`aspect-square rounded-2xl text-5xl transition-all ${selected === e ? "ring-4 ring-purple-500 scale-110 bg-purple-900 shadow-2xl" : "bg-gray-800 hover:bg-gray-700 hover:scale-105"}`}>
-            {e}
+    <div className="min-h-screen bg-gradient-to-b from-[#0f0f23] to-[#1a1a2e] flex flex-col items-center justify-center p-8 text-white">
+      {/* For toast notifications, uncomment <Toaster /> if not provided in layout.tsx */}
+      {/* <Toaster position="bottom-center" /> */}
+
+      {/* Login screen (if Privy is ready but not authenticated) */}
+      {ready && !authenticated && (
+        <>
+          <h1 className="text-4xl font-bold text-purple-400 mb-4">MoodMap</h1>
+          <p className="text-xl text-center mb-8">Please log in with Farcaster to share your mood and see the map.</p>
+          <button onClick={login} className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 px-8 py-4 rounded-full text-xl font-bold shadow-2xl transition-all">
+            Log in with Farcaster
           </button>
-        ))}
-      </div>
-      <input maxLength={24} value={note} onChange={e => setNote(e.target.value)} placeholder="Short status (optional)" className="bg-gray-800 rounded-xl px-6 py-4 text-lg mb-2"/>
-      <div className="text-right text-sm text-gray-500 mb-6">{note.length}/24</div>
-      <button onClick={submit} disabled={!selected || !location || loading} className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 py-6 rounded-full text-2xl font-bold shadow-2xl flex items-center justify-center gap-4">
-        {loading ? <Loader2 className="animate-spin text-3xl"/> : "Add to Map 🚀"}
-      </button>
+        </>
+      )}
+
+      {/* Farcaster account not connected screen (if authenticated in Privy but Farcaster FID is missing) */}
+      {ready && authenticated && fid === undefined && (
+        <>
+            <h2 className="text-3xl font-bold text-purple-400 mb-4">Farcaster Account Not Connected</h2>
+            <p className="text-lg text-center mb-8">You need a Farcaster account to share your mood. Please log in with Farcaster again or connect Farcaster to your existing Privy account.</p>
+            <button onClick={login} className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 px-8 py-4 rounded-full text-xl font-bold shadow-2xl transition-all">
+                Log in with Farcaster Again
+            </button>
+        </>
+      )}
+      
+      {/* Initial mood entry screen (if authenticated in Privy, Farcaster FID is present, no mood exists, and check is complete) */}
+      {ready && authenticated && fid !== undefined && !loadingInitialCheck && (
+        <>
+          <h2 className="text-3xl font-bold text-center bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent mb-4">
+            Hello! Ready to share your first mood?
+          </h2>
+          <p className="text-lg text-center text-gray-300 mb-6">
+            You haven't shared a mood yet. Click "Share My Mood" to add it to the map.
+          </p>
+          <button
+            onClick={() => router.push("/map")} // Redirect to map page, MoodUpdateOverlay will open there
+            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 px-10 py-5 rounded-full font-bold text-xl shadow-2xl transition-all"
+          >
+            Share My Mood 🚀
+          </button>
+          <p className="text-sm text-gray-500 mt-4">Don't forget to allow location permissions!</p>
+        </>
+      )}
     </div>
   );
 }
