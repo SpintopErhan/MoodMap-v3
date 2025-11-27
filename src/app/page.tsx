@@ -22,7 +22,7 @@ export default function Home() {
   
   const fid = user?.farcaster?.fid; // Farcaster ID (number | undefined)
   //const userName = user?.farcaster?.username; // YENİ: Farcaster kullanıcı adı (string | undefined)
-  const privyUserId = user?.id; // Privy's DID (string | undefined) - Only available if authenticated in Privy
+  //const privyUserId = user?.id; // Privy's DID (string | undefined) - Only available if authenticated in Privy
 
   // Main useEffect for mood check and redirection
   useEffect(() => {
