@@ -21,7 +21,7 @@ export default function Home() {
   const [loadingInitialCheck, setLoadingInitialCheck] = useState(true); // Loading state for initial check
   
   const fid = user?.farcaster?.fid; // Farcaster ID (number | undefined)
-  const userName = user?.farcaster?.username; // YENİ: Farcaster kullanıcı adı (string | undefined)
+  //const userName = user?.farcaster?.username; // YENİ: Farcaster kullanıcı adı (string | undefined)
   const privyUserId = user?.id; // Privy's DID (string | undefined) - Only available if authenticated in Privy
 
   // Main useEffect for mood check and redirection
