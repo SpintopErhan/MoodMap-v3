@@ -9,7 +9,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import { toast, Toaster } from 'react-hot-toast'; 
 
-// Bileşenlerin importları. tsconfig.json'daki paths ayarı ( @/*": ["./src/*"] ) dikkate alınmıştır.
+// Bileşenlerin importları. tsconfig.json'daki paths ayarı ( @/*": ["./src/*/*"] ) dikkate alınmıştır.
 import MoodUpdateOverlay from "@/components/MoodUpdateOverlay"; 
 import { Button } from "@/components/Button"; 
 import { MoodFeed } from "@/components/MoodFeed"; 
@@ -174,12 +174,18 @@ export default function MapPage() {
   const [geocodedGroupLocations, setGeocodedGroupLocations] = useState<Record<string, { lat: number; lng: number }>>({});
   const geocodingCache = useRef<Record<string, { lat: number; lng: number } | null>>({});
 
-  // YENİ: Demo mood'ları gösterme state'i
-  const [showDemoMoods, setShowDemoMoods] = useState(false);
+  // Demo mood'ları gösterme state'i
+  // const [showDemoMoods, setShowDemoMoods] = useState(false); // Bu satır kaldırıldı.
 
   const fid = user?.farcaster?.fid; 
   const privyUserId = user?.id; 
   const userName = user?.farcaster?.username;
+
+  // Ortam değişkenini kontrol et
+  const showDemoButton = process.env.NEXT_PUBLIC_ENABLE_DEMO_BUTTON === 'true';
+  // Demo mood'ları gösterip göstermeme mantığı artık sadece butona bağlı değil,
+  // ortam değişkeni kapalıysa butona basılsa bile gösterilmemeli.
+  const [showDemoMoods, setShowDemoMoods] = useState(showDemoButton); // Başlangıçta ortam değişkenine göre ayarla
 
   useEffect(() => {
     if (ready && !authenticated) {
@@ -199,8 +205,8 @@ export default function MapPage() {
       }
       
       let fetchedMoods = data || [];
-      // YENİ: Eğer demo mood'lar açıksa, onları da mevcut mood'lara ekle
-      if (showDemoMoods) {
+      // YENİ: Eğer demo mood'lar açıksa (state'e göre) ve ortam değişkeni demo'yu destekliyorsa, onları da mevcut mood'lara ekle
+      if (showDemoMoods && showDemoButton) { // Hem state hem de ortam değişkeni kontrolü
         fetchedMoods = [...DEMO_MOODS_DATA, ...fetchedMoods];
       }
       setMoods(fetchedMoods); // Güncellenmiş mood listesini state'e kaydet
@@ -223,7 +229,7 @@ export default function MapPage() {
       console.error("Unexpected error fetching moods:", e); 
       toast.error("An unexpected error occurred while loading moods: " + e.message);
     }
-  }, [authenticated, fid, userLocation, showDemoMoods]); // showDemoMoods bağımlılıklara eklendi
+  }, [authenticated, fid, userLocation, showDemoMoods, showDemoButton]); // showDemoButton bağımlılıklara eklendi
 
   useEffect(() => {
     Promise.all([import("leaflet"), import("leaflet/dist/leaflet.css")]).then(([leaflet]) => {
@@ -435,12 +441,6 @@ export default function MapPage() {
               >
                 <Popup closeButton={false} className="custom-popup" offset={[0, -20]}> 
                   <div className="bg-[#0f0f23] p-6 rounded-3xl border border-purple-600 shadow-2xl min-w-[280px]">
-                    {/* BU KISIM KALDIRILDI: count > 1 koşuluna bağlı başlık */}
-                    {/* {count > 1 && (
-                      <div className="text-center text-purple-400 font-bold mb-4 text-xl">
-                        {count} vibes here!
-                      </div>
-                    )} */}
                     {/* Mood listesi artık mb-4 ile biraz boşluk alabilir */}
                     <div className="space-y-3 max-h-[300px] overflow-y-auto scrollbar-hide mb-1"> 
                       {group.map((m) => (
@@ -472,17 +472,19 @@ export default function MapPage() {
 
       {/* ======== SABİT ALT BUTONLAR ALANI ======== */}
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 z-[1000]">
-        {/* YENİ: Demo Moods Butonu */}
-        <Button
-          onClick={() => setShowDemoMoods(prev => {
-            toast.success(prev ? "Demo Moods Hidden" : "Demo Moods Shown");
-            return !prev;
-          })}
-          variant="secondary" 
-          className={`px-4 py-3 text-lg rounded-full backdrop-blur-md bg-slate-800/70 border ${showDemoMoods ? 'border-green-500 text-green-300' : 'border-slate-700 text-white'} shadow-xl hover:bg-slate-700/80 transition-colors`}
-        >
-          <TestTube2 size={20} className="mr-2" /> {showDemoMoods ? "Hide Demo" : "Show Demo"}
-        </Button>
+        {/* YENİ: Demo Moods Butonu - SADECE NEXT_PUBLIC_ENABLE_DEMO_BUTTON=true ise göster */}
+        {showDemoButton && (
+          <Button
+            onClick={() => setShowDemoMoods(prev => {
+              toast.success(prev ? "Demo Moods Hidden" : "Demo Moods Shown");
+              return !prev;
+            })}
+            variant="secondary" 
+            className={`px-4 py-3 text-lg rounded-full backdrop-blur-md bg-slate-800/70 border ${showDemoMoods ? 'border-green-500 text-green-300' : 'border-slate-700 text-white'} shadow-xl hover:bg-slate-700/80 transition-colors`}
+          >
+            <TestTube2 size={20} className="mr-2" /> {showDemoMoods ? "Hide Demo" : "Show Demo"}
+          </Button>
+        )}
         {/* ========================================= */}
 
         <Button
