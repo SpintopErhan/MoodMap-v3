@@ -1,8 +1,7 @@
 // app/page.tsx
 "use client";
 
-// ESKİ: import { useEffect, useState, useRef } from "react";
-import { useEffect, useState } from "react"; // 'useRef' kaldırıldı
+import { useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
@@ -22,6 +21,7 @@ export default function Home() {
   const [loadingInitialCheck, setLoadingInitialCheck] = useState(true); // Loading state for initial check
   
   const fid = user?.farcaster?.fid; // Farcaster ID (number | undefined)
+  const userName = user?.farcaster?.username; // YENİ: Farcaster kullanıcı adı (string | undefined)
   const privyUserId = user?.id; // Privy's DID (string | undefined) - Only available if authenticated in Privy
 
   // Main useEffect for mood check and redirection

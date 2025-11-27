@@ -28,7 +28,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// ======== MOOD TİPİ ========
+// ======== MOOD TİPİ GÜNCELLENDİ ========
 export type Mood = { 
   id: string;
   emoji: string;
@@ -37,9 +37,10 @@ export type Mood = {
   lng: number;
   fid: number; 
   user_id: string; 
+  user_name: string; // YENİ: Farcaster kullanıcı adı eklendi
   created_at: string;
 };
-// ==========================
+// ======================================
 
 // Leaflet'ın varsayılan ikonlarını geçersiz kılmak için gerekli (Next.js ile kullanırken)
 // Bu kod satırı global leaflet.css'in doğru yüklenmesini sağlar
@@ -102,6 +103,7 @@ export default function MapPage() {
 
   const fid = user?.farcaster?.fid; 
   const privyUserId = user?.id; 
+  const userName = user?.farcaster?.username; // YENİ: Farcaster kullanıcı adı çekildi
 
   useEffect(() => {
     if (ready && !authenticated) {
@@ -111,6 +113,7 @@ export default function MapPage() {
 
   const fetchMoods = useCallback(async (focusOnUserAfterFetch = false) => {
     try {
+      // Mood tipinin güncellenmesi nedeniyle, * ile çekilen verinin user_name alanını da içereceğini varsayıyoruz.
       const { data, error } = await supabase.from("moods").select("*").order('created_at', { ascending: false }); 
       if (error) {
         console.error("Error fetching moods:", error); 
@@ -170,8 +173,9 @@ export default function MapPage() {
   }, [ready, authenticated, fid, fetchMoods]); 
 
   const handleSubmitMood = async (emoji: string, status: string) => { 
-    if (!emoji || !userLocation || fid === undefined || privyUserId === undefined) { 
-      toast.error("Please select an emoji, grant location access, and log in with Farcaster.");
+    // YENİ: userName'in de varlığını kontrol etmeliyiz çünkü veritabanında NOT NULL
+    if (!emoji || !userLocation || fid === undefined || privyUserId === undefined || userName === undefined) { 
+      toast.error("Please select an emoji, grant location access, and log in with Farcaster (including username).");
       return;
     }
     setLoading(true);
@@ -181,6 +185,7 @@ export default function MapPage() {
         {
           fid: fid,               
           user_id: privyUserId,   
+          user_name: userName, // YENİ: user_name veritabanına eklendi
           emoji: emoji,
           status: status.slice(0, 24) || null,
           lat: userLocation.lat,
@@ -220,7 +225,8 @@ export default function MapPage() {
     if (showMoodOverlay) setShowMoodOverlay(false);
   };
 
-  if (!ready || !authenticated || fid === undefined || privyUserId === undefined) {
+  // YENİ: userName'in de varlığını kontrol etmeliyiz
+  if (!ready || !authenticated || fid === undefined || privyUserId === undefined || userName === undefined) {
     return (
         <div className="min-h-screen bg-gradient-to-b from-[#0f0f23] to-[#1a1a2e] flex flex-col items-center justify-center p-8 text-white">
             <Loader2 className="animate-spin text-purple-400 w-16 h-16 mb-4" />
@@ -337,6 +343,8 @@ export default function MapPage() {
                         >
                           <div className="text-4xl">{m.emoji}</div>
                           <div className="text-sm text-gray-300 flex-grow">
+                            {/* YENİ: Kullanıcı adı gösteriliyor */}
+                            <div className="font-semibold text-white">{m.user_name}</div> 
                             {m.status && <div className="italic">&quot;{m.status}&quot;</div>}
                           </div>
                           {m.fid === fid && (

@@ -1,10 +1,10 @@
 // src/components/MoodFeed.tsx
 import React from 'react';
 
-// ======== app/map/page.tsx dosyasındaki Mood tanımını buraya kopyala ========
+// ======== Mood Tanımı Güncellendi ========
+// app/map/page.tsx dosyasındaki Mood tanımını buraya kopyala
 // Bu tipi MoodFeed.tsx'in kendi içinde tanımlıyoruz.
-// Eğer app/map/page.tsx'teki Mood tipine ek alanlar eklediysen (örn: username, locationLabel),
-// buraya da eklemelisin ve aşağıdaki render kısmında kullanabilirsin.
+// user_name alanı buraya eklendi.
 export type Mood = { 
   id: string;
   emoji: string;
@@ -13,6 +13,7 @@ export type Mood = {
   lng: number;
   fid: number; 
   user_id: string; 
+  user_name: string; // YENİ: Farcaster kullanıcı adı eklendi
   created_at: string;
 };
 // ============================================================================
@@ -36,8 +37,8 @@ export const MoodFeed: React.FC<MoodFeedProps> = ({ moods }) => {
             >
               <span className="text-4xl">{mood.emoji}</span>
               <div>
-                {/* Mood objende username alanı yok, fid veya user_id kullanabilirsin */}
-                <p className="text-white text-lg font-semibold">User: {mood.fid || mood.user_id}</p> 
+                {/* YENİ: Kullanıcı adı gösteriliyor */}
+                <p className="text-white text-lg font-semibold">User: {mood.user_name}</p> 
                 {mood.status && <p className="text-slate-300 text-sm">"{mood.status}"</p>}
                 <p className="text-slate-400 text-xs mt-1">
                   {/* created_at kullanarak tarihi gösteriyoruz */}
