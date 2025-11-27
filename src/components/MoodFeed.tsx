@@ -1,10 +1,10 @@
 // src/components/MoodFeed.tsx
 import React from 'react';
 
-// ======== Mood Tanımı Güncellendi ========
+// ======== Mood Tanımı Güncellendi (location eklendi) ========
 // app/map/page.tsx dosyasındaki Mood tanımını buraya kopyala
 // Bu tipi MoodFeed.tsx'in kendi içinde tanımlıyoruz.
-// user_name alanı buraya eklendi.
+// user_name alanı ve YENİ olarak location alanı buraya eklendi.
 export type Mood = { 
   id: string;
   emoji: string;
@@ -13,7 +13,8 @@ export type Mood = {
   lng: number;
   fid: number; 
   user_id: string; 
-  user_name: string; // YENİ: Farcaster kullanıcı adı eklendi
+  user_name: string; 
+  location: string | null; // YENİ: Reverse geocoded konum stringi eklendi
   created_at: string;
 };
 // ============================================================================
@@ -37,11 +38,11 @@ export const MoodFeed: React.FC<MoodFeedProps> = ({ moods }) => {
             >
               <span className="text-4xl">{mood.emoji}</span>
               <div>
-                {/* YENİ: Kullanıcı adı gösteriliyor */}
-                <p className="text-white text-lg font-semibold">User: {mood.user_name}</p> 
+                <p className="text-white text-lg font-semibold"> {mood.user_name}</p> 
                 {mood.status && <p className="text-slate-300 text-sm">"{mood.status}"</p>}
+                {/* YENİ: Location bilgisini gösteriyoruz */}
+                {mood.location && <p className="text-slate-400 text-xs mt-1">{mood.location}</p>} 
                 <p className="text-slate-400 text-xs mt-1">
-                  {/* created_at kullanarak tarihi gösteriyoruz */}
                   {new Date(mood.created_at).toLocaleString()}
                 </p>
               </div>

@@ -51,7 +51,7 @@ body {
   height: 55px; /* Dairenin yüksekliği */
   border-radius: 50%; /* Yuvarlak şekil verir */
   background-color: rgba(59, 59, 59, 0.7); /* Siyah, %70 opak arka plan */
-  border: 5px solid #a78bfa; /* MOR DIŞ HALKA KALINLIĞI ARTIRILDI: 3px -> 4px */
+  border: 5px solid #a78bfa; /* MOR DIŞ HALKA KALINLIĞI ARTIRILDI: 3px -> 5px */
   display: flex; /* Emojiyi ortalamak için Flexbox kullanır */
   align-items: center; /* Dikeyde ortalama */
   justify-content: center; /* Yatayda ortalama */

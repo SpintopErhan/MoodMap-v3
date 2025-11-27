@@ -34,7 +34,7 @@ export default function Home() {
 
     // If authenticated in Privy but Farcaster FID is missing,
     // we'll need to prompt the user to connect Farcaster.
-    // In this case, we don't perform a mood check.
+    // In this case, we don't perform a mood check, just stop loading.
     if (authenticated && fid === undefined) {
       setLoadingInitialCheck(false);
       return;
@@ -43,7 +43,7 @@ export default function Home() {
     // If Farcaster FID is available, start the mood check
     if (authenticated && fid !== undefined) {
       const checkExistingMoodAndRedirect = async () => {
-        setLoadingInitialCheck(true); // Activate loading state while checking
+        // setLoadingInitialCheck(true); // Zaten başlangıçta true, Supabase çağrısı bitince false olacak
         try {
           // Check for existing mood using FID
           const { data } = await supabase
@@ -71,8 +71,8 @@ export default function Home() {
 
   // Loading screen
   // Show if Privy is not ready, or if the initial check is ongoing.
-  // Or if Privy is ready and authenticated but PrivyUserId (needed for Farcaster ID) is not yet available.
-  if (!ready || loadingInitialCheck || (authenticated && fid === undefined && privyUserId === undefined)) {
+  // VEYA Privy hazır ve kimliği doğrulanmış ancak Farcaster FID'si henüz mevcut değilse.
+  if (!ready || loadingInitialCheck || (authenticated && fid === undefined)) { // KISALTILMIŞ KONTROL
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#0f0f23] to-[#1a1a2e] flex flex-col items-center justify-center p-8 text-white">
         <Loader2 className="animate-spin text-purple-400 w-16 h-16 mb-4" />

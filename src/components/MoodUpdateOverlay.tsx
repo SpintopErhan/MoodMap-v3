@@ -3,7 +3,10 @@
 
 import React, { useState, useRef } from "react";
 import { Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils"; // cn yardımcı fonksiyonunu import ettik.
+import { cn } from "@/lib/utils"; 
+
+// Sabitler
+const MAX_MOOD_STATUS_LENGTH = 24; 
 
 const moodsEmojis = [
   "🤩","😍","🥰","😘","😊","🙂","🤗","🤔","😐","😑","🙄","😏","😣","😥","😮","🤐","😯","😪","😫","🥱",
@@ -18,7 +21,7 @@ interface MoodUpdateOverlayProps {
   onSubmit: (emoji: string, status: string) => Promise<void>; 
   locationError: boolean;
   loading: boolean;
-  className?: string; // Dışarıdan class'lar almak için
+  className?: string; 
 }
 
 const MoodUpdateOverlay: React.FC<MoodUpdateOverlayProps> = ({
@@ -62,22 +65,10 @@ const MoodUpdateOverlay: React.FC<MoodUpdateOverlayProps> = ({
   return (
     <div className={cn(
         "w-full max-w-md bg-gray-900 rounded-2xl p-6 flex flex-col gap-4 relative",
-        "shadow-2xl border border-purple-600", // Pop-up hissi için ek stiller
-        className // app/map/page.tsx'ten gelen class'ları uygula
+        "shadow-2xl border border-purple-600", 
+        className 
       )}
     >
-      {/* ======== Kapatma butonu (X) kaldırıldı ======== */}
-      {/* Önceki kodunuzdaki bu buton artık yok:
-      <button
-        onClick={onClose}
-        className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors text-3xl font-bold"
-        aria-label="Kapat"
-      >
-        &times; 
-      </button> 
-      */}
-      {/* ============================================== */}
-
       <h2 className="text-3xl font-bold text-center bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
         How is your mood today?
       </h2>
@@ -107,13 +98,13 @@ const MoodUpdateOverlay: React.FC<MoodUpdateOverlayProps> = ({
 
       <input
         type="text"
-        maxLength={24}
+        maxLength={MAX_MOOD_STATUS_LENGTH} // Sabit kullanıldı
         value={note}
         onChange={(e) => setNote(e.target.value)}
         placeholder="Short status (optional)"
         className="bg-gray-700 rounded-xl px-4 py-3 text-base text-white focus:ring-2 focus:ring-purple-500 outline-none border border-transparent"
       />
-      <div className="text-right text-sm text-gray-400">{note.length}/24</div>
+      <div className="text-right text-sm text-gray-400">{note.length}/{MAX_MOOD_STATUS_LENGTH}</div> {/* Sabit kullanıldı */}
 
       <div className="flex gap-4 w-full">
         <button
