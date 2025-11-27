@@ -34,7 +34,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// ======== MOOD TİPİ GÜNCELLENDİ (location eklendi) ========
+// Mood tipi (location eklendi)
 export type Mood = { 
   id: string;
   emoji: string;
@@ -44,12 +44,11 @@ export type Mood = {
   fid: number; 
   user_id: string; 
   user_name: string; 
-  location: string | null; // YENİ: Reverse geocoded konum stringi
+  location: string | null; // Reverse geocoded konum stringi
   created_at: string;
 };
-// ==========================================================
 
-// YENİ: Reverse Geocoding Fonksiyonu (Konum koordinatlarından isim almak için)
+// Reverse Geocoding Fonksiyonu (Konum koordinatlarından isim almak için)
 async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
   const apiKey = process.env.NEXT_PUBLIC_OPENCAGE_API_KEY;
   if (!apiKey) {
@@ -64,7 +63,8 @@ async function reverseGeocode(lat: number, lng: number): Promise<string | null> 
     const data = await response.json();
     if (data.results && data.results.length > 0) {
       const components = data.results[0].components;
-      let locationParts: string[] = [];
+      // 'locationParts' değişkeni 'const' olarak güncellendi.
+      const locationParts: string[] = []; 
 
       if (components.city) locationParts.push(components.city);
       else if (components.town) locationParts.push(components.town);
@@ -86,7 +86,7 @@ async function reverseGeocode(lat: number, lng: number): Promise<string | null> 
   }
 }
 
-// ======== YENİ: Forward Geocoding Fonksiyonu (Konum isminden koordinat almak için) ========
+// Forward Geocoding Fonksiyonu (Konum isminden koordinat almak için)
 async function forwardGeocode(locationString: string): Promise<{ lat: number; lng: number } | null> {
   const apiKey = process.env.NEXT_PUBLIC_OPENCAGE_API_KEY;
   if (!apiKey) {
@@ -109,7 +109,6 @@ async function forwardGeocode(locationString: string): Promise<{ lat: number; ln
     return null;
   }
 }
-// =======================================================================================
 
 
 // Harita odaklansın diye
@@ -132,7 +131,7 @@ export default function MapPage() {
   const [moods, setMoods] = useState<Mood[]>([]);
   const [L, setL] = useState<any>(null); // Leaflet objesini tutar
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [geocodedLocation, setGeocodedLocation] = useState<string | null>(null); // YENİ: Geocoded konum stringi
+  const [geocodedLocation, setGeocodedLocation] = useState<string | null>(null); 
   const [locationError, setLocationError] = useState(false);
   const [focusTrigger, setFocusTrigger] = useState(0); 
   const [showMoodOverlay, setShowMoodOverlay] = useState(false);
@@ -142,10 +141,9 @@ export default function MapPage() {
   
   const initialMoodCheckPerformed = useRef(false); 
 
-  // ======== YENİ: Gruplanmış konumların koordinatlarını tutacak state ve cache ========
+  // Gruplanmış konumların koordinatlarını tutacak state ve cache
   const [geocodedGroupLocations, setGeocodedGroupLocations] = useState<Record<string, { lat: number; lng: number }>>({});
   const geocodingCache = useRef<Record<string, { lat: number; lng: number } | null>>({});
-  // ====================================================================================
 
   const fid = user?.farcaster?.fid; 
   const privyUserId = user?.id; 
@@ -159,7 +157,6 @@ export default function MapPage() {
 
   const fetchMoods = useCallback(async (focusOnUserAfterFetch = false) => {
     try {
-      // Mood tipinin güncellenmesi nedeniyle, * ile çekilen verinin location alanını da içereceğini varsayıyoruz.
       const { data, error } = await supabase.from("moods").select("*").order('created_at', { ascending: false }); 
       if (error) {
         console.error("Error fetching moods:", error); 
@@ -209,7 +206,7 @@ export default function MapPage() {
     );
   }, []); 
 
-  // YENİ: userLocation güncellendiğinde reverse geocoding yap
+  // userLocation güncellendiğinde reverse geocoding yap
   useEffect(() => {
     if (userLocation) {
       const getGeocodedLocation = async () => {
@@ -222,7 +219,7 @@ export default function MapPage() {
     }
   }, [userLocation]); 
 
-  // ======== YENİ: mood'lar değiştiğinde benzersiz konumlar için forward geocoding yap ========
+  // mood'lar değiştiğinde benzersiz konumlar için forward geocoding yap
   useEffect(() => {
     const uniqueLocations = Array.from(new Set(moods.map(m => m.location).filter(Boolean) as string[]));
     
@@ -249,7 +246,6 @@ export default function MapPage() {
       fetchGroupCoordinates();
     }
   }, [moods]); 
-  // ============================================================================================
 
   useEffect(() => {
     if (ready && authenticated && fid !== undefined) {
@@ -258,7 +254,6 @@ export default function MapPage() {
   }, [ready, authenticated, fid, fetchMoods]); 
 
   const handleSubmitMood = async (emoji: string, status: string) => { 
-    // YENİ: geocodedLocation'ın da varlığını kontrol et
     if (!emoji || !userLocation || fid === undefined || privyUserId === undefined || userName === undefined) { 
       toast.error("Please select an emoji, grant location access, and log in with Farcaster.");
       return;
@@ -273,10 +268,10 @@ export default function MapPage() {
           user_id: privyUserId,   
           user_name: userName, 
           emoji: emoji,
-          status: status.slice(0, MOOD_STATUS_MAX_LENGTH) || null, // Sabit kullanıldı
+          status: status.slice(0, MOOD_STATUS_MAX_LENGTH) || null, 
           lat: userLocation.lat,
           lng: userLocation.lng,
-          location: geocodedLocation, // YENİ: geocodedLocation veritabanına eklendi
+          location: geocodedLocation, 
         },
         { onConflict: 'fid' } 
       );
@@ -312,7 +307,6 @@ export default function MapPage() {
     if (showMoodOverlay) setShowMoodOverlay(false);
   };
 
-  // YENİ: userName'in de varlığını kontrol etmeliyiz
   if (!ready || !authenticated || fid === undefined || privyUserId === undefined || userName === undefined) {
     return (
         <div className="min-h-screen bg-gradient-to-b from-[#0f0f23] to-[#1a1a2e] flex flex-col items-center justify-center p-8 text-white">
@@ -331,25 +325,19 @@ export default function MapPage() {
 
   const groups: Record<string, Mood[]> = {};
   moods.forEach((m) => {
-    // ======== DEĞİŞİKLİK BURADA: Gruplama anahtarı ve anonimlik vurgusu ========
-    // Eğer mood'un geocoded location bilgisi varsa, onu gruplama anahtarı olarak kullan.
-    // Anonimliği artırmak adına, eğer location stringi yoksa bu mood'u gruplama dışı bırakıyoruz.
-    // Bu, haritada yalnızca genel konum bilgisi olan mood'ların görünmesini sağlar.
     const key = m.location && m.location.trim() !== '' 
       ? m.location 
       : null; 
       
-    if (key) { // Yalnızca geçerli bir konum stringi varsa grupla
+    if (key) { 
       if (!groups[key]) groups[key] = [];
       groups[key].push(m);
     }
-    // key null ise, bu mood gruplanmayacak ve dolayısıyla haritada görünmeyecektir.
-    // Bu, "genel konumda göster" prensibini katı bir şekilde uygular.
-    // =========================================================================
   });
 
   const createIcon = (emoji: string, count: number) => {
-    // if (!L) return undefined; // BU SATIR SİLİNDİ - dışarıda kontrol ediliyor
+    // Sabitler kullanıldı
+    // if (!L) return undefined; // Bu satır dışarıda kontrol edildiği için silindi
 
     const isCurrentUserSingleMood = count === 1 && moods.some(m => m.fid === fid && m.emoji === emoji);
     const filterShadow = `drop-shadow(0 0 12px ${isCurrentUserSingleMood ? 'rgba(168,85,247,0.7)' : 'black'})`;
@@ -358,16 +346,16 @@ export default function MapPage() {
       return L.divIcon({
         html: `<div class="mood-marker-icon" style="font-size: 2rem; ${filterShadow}">${emoji}</div>`,
         className: "", 
-        iconSize: [MOOD_MARKER_SIZE, MOOD_MARKER_SIZE], // Sabit kullanıldı
-        iconAnchor: [MOOD_MARKER_ANCHOR_OFFSET, MOOD_MARKER_ANCHOR_OFFSET], // Sabit kullanıldı
+        iconSize: [MOOD_MARKER_SIZE, MOOD_MARKER_SIZE], 
+        iconAnchor: [MOOD_MARKER_ANCHOR_OFFSET, MOOD_MARKER_ANCHOR_OFFSET], 
       });
     }
 
     return L.divIcon({
       html: `<div class="mood-marker-icon" style="font-size: 1.8rem; font-weight: bold; filter: drop-shadow(0 0 12px black);">${count}</div>`, 
       className: "", 
-      iconSize: [MOOD_MARKER_SIZE, MOOD_MARKER_SIZE], // Sabit kullanıldı
-      iconAnchor: [MOOD_MARKER_ANCHOR_OFFSET, MOOD_MARKER_ANCHOR_OFFSET], // Sabit kullanıldı
+      iconSize: [MOOD_MARKER_SIZE, MOOD_MARKER_SIZE], 
+      iconAnchor: [MOOD_MARKER_ANCHOR_OFFSET, MOOD_MARKER_ANCHOR_OFFSET], 
     });
   };
 
@@ -392,29 +380,25 @@ export default function MapPage() {
           {userLocation && <FocusUserLocation location={userLocation} trigger={focusTrigger} />}
 
           {Object.entries(groups).map(([groupKey, group]) => {
-            // ======== DEĞİŞİKLİK BURADA: Marker'ın konumu artık genel konuma bağlı ========
             const markerCoords = geocodedGroupLocations[groupKey];
             
             if (!markerCoords) {
-              // Eğer bu grubun genel konumu henüz geocoded edilmediyse veya başarısız olduysa
-              // marker'ı gösterme. Bu, verilerin yüklenmesini beklediğimiz veya 
-              // anonimlik gereği tam koordinat göstermediğimiz anlamına gelir.
               return null;
             }
-            // =============================================================================
-
-            const first = group[0]; 
+            
+            // 'first' değişkeni artık kullanılmadığı için kaldırıldı.
+            // const first = group[0]; 
             const currentUserMoodInGroup = group.find(m => m.fid === fid);
+            // 'group[0]' doğrudan kullanıldı.
             const mainEmoji = currentUserMoodInGroup ? currentUserMoodInGroup.emoji : group[0].emoji; 
             const count = group.length; 
 
             return (
               <Marker
                 key={groupKey} 
-                position={[markerCoords.lat, markerCoords.lng]} // Marker, genel konumun koordinatlarına yerleşecek
+                position={[markerCoords.lat, markerCoords.lng]} 
                 icon={L && L.divIcon ? createIcon(mainEmoji, count) : undefined}
               >
-                {/* ======== Popup'a offset={[0, -20]} eklendi ======== */}
                 <Popup closeButton={false} className="custom-popup" offset={[0, -20]}> 
                   <div className="bg-[#0f0f23] p-6 rounded-3xl border border-purple-600 shadow-2xl min-w-[280px]">
                     {count > 1 && (
@@ -434,7 +418,7 @@ export default function MapPage() {
                           <div className="text-sm text-gray-300 flex-grow">
                             <div className="font-semibold text-white">{m.user_name}</div> 
                             {m.status && <div className="italic">&quot;{m.status}&quot;</div>}
-                            {m.location && <div className="text-gray-400 text-xs mt-1">{m.location}</div>} {/* Location bilgisini göster */}
+                            {m.location && <div className="text-gray-400 text-xs mt-1">{m.location}</div>} 
                           </div>
                           {m.fid === fid && (
                               <span className="text-purple-300 font-bold text-xs px-2 py-1 bg-purple-900 rounded-full">You</span>
@@ -450,7 +434,7 @@ export default function MapPage() {
         </MapContainer>
       </div>
 
-      {/* ======== SABİT ALT BUTONLAR ALANI ======== */}
+      {/* SABİT ALT BUTONLAR ALANI */}
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 z-[1000]">
         <Button
           onClick={handleMapAction}
@@ -496,7 +480,7 @@ export default function MapPage() {
         </>
       )}
 
-      {/* ======== MOOD FEED (ALTTAN KAYAN PANEL) ======== */}
+      {/* MOOD FEED (ALTTAN KAYAN PANEL) */}
       <div
         className={`fixed inset-x-0 bottom-0 max-h-[80%] h-2/3 md:h-1/2 bg-slate-900/95 backdrop-blur-xl z-[990]
                     transform transition-transform duration-500 ease-in-out rounded-t-3xl
