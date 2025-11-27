@@ -22,13 +22,19 @@ const Popup = dynamic(() => import("react-leaflet").then((mod) => mod.Popup), { 
 
 import { useMap } from "react-leaflet"; 
 
+// Sabitler
+const MOOD_STATUS_MAX_LENGTH = 24;
+const MOOD_MARKER_SIZE = 52;
+const MOOD_MARKER_ANCHOR_OFFSET = MOOD_MARKER_SIZE / 2;
+
+
 // Supabase client created with anonymous key.
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// ======== MOOD TİPİ GÜNCELLENDİ ========
+// ======== MOOD TİPİ GÜNCELLENDİ (location eklendi) ========
 export type Mood = { 
   id: string;
   emoji: string;
@@ -37,40 +43,74 @@ export type Mood = {
   lng: number;
   fid: number; 
   user_id: string; 
-  user_name: string; // YENİ: Farcaster kullanıcı adı eklendi
+  user_name: string; 
+  location: string | null; // YENİ: Reverse geocoded konum stringi
   created_at: string;
 };
-// ======================================
+// ==========================================================
 
-// Leaflet'ın varsayılan ikonlarını geçersiz kılmak için gerekli (Next.js ile kullanırken)
-// Bu kod satırı global leaflet.css'in doğru yüklenmesini sağlar
-// Normalde bu L.Icon.Default.mergeOptions ile yapılırdı ama dinamik import nedeniyle burada L'yi kullanmadan yapılır.
-// Eğer bu hata veriyorsa, app/layout.tsx veya benzeri bir root dosyada bunu manuel olarak Leaflet importu sonrası deneyebilirsiniz.
-// Ancak bizim divIcon yaklaşımımızla varsayılan ikonlar yerine özel ikonlar kullandığımız için bu kısım artık daha az kritik.
-// delete (L.Icon.Default.prototype as any)._get  ; // Bu satır L tanımlı olmadığı için sorun çıkarabilir, bu yüzden kaldırıldı.
+// YENİ: Reverse Geocoding Fonksiyonu (Konum koordinatlarından isim almak için)
+async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
+  const apiKey = process.env.NEXT_PUBLIC_OPENCAGE_API_KEY;
+  if (!apiKey) {
+    console.error("OpenCage API key is not set. Please add NEXT_PUBLIC_OPENCAGE_API_KEY to your .env.local");
+    toast.error("Location lookup failed: API key missing.");
+    return null;
+  }
+  try {
+    const response = await fetch(
+      `https://api.opencagedata.com/geocode/v1/json?q=${lat}+${lng}&key=${apiKey}&language=tr` 
+    );
+    const data = await response.json();
+    if (data.results && data.results.length > 0) {
+      const components = data.results[0].components;
+      let locationParts: string[] = [];
 
-// LocationMarker bileşeni KULLANICI İSTEĞİ ÜZERİNE KALDIRILDI
-/*
-const LocationMarker: React.FC<{ location: { lat: number; lng: number } | null, setLocation: (latlng: any) => void, userLocationIcon: any }> = ({ location, setLocation, userLocationIcon }) => {
-  const map = useMap();
+      if (components.city) locationParts.push(components.city);
+      else if (components.town) locationParts.push(components.town);
+      else if (components.village) locationParts.push(components.village);
 
-  useEffect(() => {
-    map.locate().on('locationfound', function (e) {
-      setLocation(e.latlng);
-      map.flyTo(e.latlng, map.getZoom());
-    });
-    map.locate().on('locationerror', function (e) {
-        console.error("Location error:", e.message);
-    });
-  }, [map, setLocation]);
+      if (components.state) locationParts.push(components.state); 
+      else if (components.province) locationParts.push(components.province); 
 
-  return location === null || !userLocationIcon ? null : (
-    <Marker position={location} icon={userLocationIcon}>
-      <Popup>Buradasınız</Popup>
-    </Marker>
-  );
-};
-*/
+      if (components.country) locationParts.push(components.country); 
+      
+      return locationParts.length > 0 ? locationParts.join(', ') : data.results[0].formatted;
+    }
+    console.warn("No geocoding results found for:", lat, lng);
+    return null;
+  } catch (error) {
+    console.error("Reverse geocoding error:", error);
+    toast.error("Failed to look up location details.");
+    return null;
+  }
+}
+
+// ======== YENİ: Forward Geocoding Fonksiyonu (Konum isminden koordinat almak için) ========
+async function forwardGeocode(locationString: string): Promise<{ lat: number; lng: number } | null> {
+  const apiKey = process.env.NEXT_PUBLIC_OPENCAGE_API_KEY;
+  if (!apiKey) {
+    console.error("OpenCage API key is not set for forward geocoding.");
+    return null;
+  }
+  try {
+    const response = await fetch(
+      `https://api.opencagedata.com/geocode/v1/json?q=${encodeURIComponent(locationString)}&key=${apiKey}&language=tr&limit=1`
+    );
+    const data = await response.json();
+    if (data.results && data.results.length > 0) {
+      const { lat, lng } = data.results[0].geometry;
+      return { lat, lng };
+    }
+    console.warn("No forward geocoding results found for:", locationString);
+    return null;
+  } catch (error) {
+    console.error("Forward geocoding error for location string:", locationString, error);
+    return null;
+  }
+}
+// =======================================================================================
+
 
 // Harita odaklansın diye
 const FocusUserLocation: React.FC<{ location: { lat: number; lng: number }, trigger: number }> = ({ location, trigger }) => {
@@ -92,6 +132,7 @@ export default function MapPage() {
   const [moods, setMoods] = useState<Mood[]>([]);
   const [L, setL] = useState<any>(null); // Leaflet objesini tutar
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [geocodedLocation, setGeocodedLocation] = useState<string | null>(null); // YENİ: Geocoded konum stringi
   const [locationError, setLocationError] = useState(false);
   const [focusTrigger, setFocusTrigger] = useState(0); 
   const [showMoodOverlay, setShowMoodOverlay] = useState(false);
@@ -101,9 +142,14 @@ export default function MapPage() {
   
   const initialMoodCheckPerformed = useRef(false); 
 
+  // ======== YENİ: Gruplanmış konumların koordinatlarını tutacak state ve cache ========
+  const [geocodedGroupLocations, setGeocodedGroupLocations] = useState<Record<string, { lat: number; lng: number }>>({});
+  const geocodingCache = useRef<Record<string, { lat: number; lng: number } | null>>({});
+  // ====================================================================================
+
   const fid = user?.farcaster?.fid; 
   const privyUserId = user?.id; 
-  const userName = user?.farcaster?.username; // YENİ: Farcaster kullanıcı adı çekildi
+  const userName = user?.farcaster?.username;
 
   useEffect(() => {
     if (ready && !authenticated) {
@@ -113,7 +159,7 @@ export default function MapPage() {
 
   const fetchMoods = useCallback(async (focusOnUserAfterFetch = false) => {
     try {
-      // Mood tipinin güncellenmesi nedeniyle, * ile çekilen verinin user_name alanını da içereceğini varsayıyoruz.
+      // Mood tipinin güncellenmesi nedeniyle, * ile çekilen verinin location alanını da içereceğini varsayıyoruz.
       const { data, error } = await supabase.from("moods").select("*").order('created_at', { ascending: false }); 
       if (error) {
         console.error("Error fetching moods:", error); 
@@ -148,9 +194,6 @@ export default function MapPage() {
       setL(leaflet.default || leaflet);
     });
 
-    // Kullanıcının mevcut konumunu almak için navigator.geolocation kullanılır.
-    // LocationMarker kaldırıldığından, harita üzerinde "Buradasınız" ikonu görünmeyecek,
-    // ancak konum bilgisi hala alınacak ve harita bu konuma odaklanabilir.
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
@@ -166,6 +209,48 @@ export default function MapPage() {
     );
   }, []); 
 
+  // YENİ: userLocation güncellendiğinde reverse geocoding yap
+  useEffect(() => {
+    if (userLocation) {
+      const getGeocodedLocation = async () => {
+        const locationString = await reverseGeocode(userLocation.lat, userLocation.lng);
+        setGeocodedLocation(locationString);
+      };
+      getGeocodedLocation();
+    } else {
+      setGeocodedLocation(null); 
+    }
+  }, [userLocation]); 
+
+  // ======== YENİ: mood'lar değiştiğinde benzersiz konumlar için forward geocoding yap ========
+  useEffect(() => {
+    const uniqueLocations = Array.from(new Set(moods.map(m => m.location).filter(Boolean) as string[]));
+    
+    const fetchGroupCoordinates = async () => {
+      const newGeocodedLocations: Record<string, { lat: number; lng: number }> = {};
+      for (const loc of uniqueLocations) {
+        if (geocodingCache.current[loc] !== undefined) { 
+          if (geocodingCache.current[loc]) { 
+            newGeocodedLocations[loc] = geocodingCache.current[loc]!;
+          }
+          continue; 
+        }
+
+        const coords = await forwardGeocode(loc);
+        geocodingCache.current[loc] = coords; 
+        if (coords) {
+          newGeocodedLocations[loc] = coords;
+        }
+      }
+      setGeocodedGroupLocations(prev => ({ ...prev, ...newGeocodedLocations }));
+    };
+
+    if (uniqueLocations.length > 0) {
+      fetchGroupCoordinates();
+    }
+  }, [moods]); 
+  // ============================================================================================
+
   useEffect(() => {
     if (ready && authenticated && fid !== undefined) {
       fetchMoods(); 
@@ -173,11 +258,12 @@ export default function MapPage() {
   }, [ready, authenticated, fid, fetchMoods]); 
 
   const handleSubmitMood = async (emoji: string, status: string) => { 
-    // YENİ: userName'in de varlığını kontrol etmeliyiz çünkü veritabanında NOT NULL
+    // YENİ: geocodedLocation'ın da varlığını kontrol et
     if (!emoji || !userLocation || fid === undefined || privyUserId === undefined || userName === undefined) { 
-      toast.error("Please select an emoji, grant location access, and log in with Farcaster (including username).");
+      toast.error("Please select an emoji, grant location access, and log in with Farcaster.");
       return;
     }
+    
     setLoading(true);
 
     try {
@@ -185,11 +271,12 @@ export default function MapPage() {
         {
           fid: fid,               
           user_id: privyUserId,   
-          user_name: userName, // YENİ: user_name veritabanına eklendi
+          user_name: userName, 
           emoji: emoji,
-          status: status.slice(0, 24) || null,
+          status: status.slice(0, MOOD_STATUS_MAX_LENGTH) || null, // Sabit kullanıldı
           lat: userLocation.lat,
           lng: userLocation.lng,
+          location: geocodedLocation, // YENİ: geocodedLocation veritabanına eklendi
         },
         { onConflict: 'fid' } 
       );
@@ -244,49 +331,43 @@ export default function MapPage() {
 
   const groups: Record<string, Mood[]> = {};
   moods.forEach((m) => {
-    const key = `${m.lat.toFixed(4)}-${m.lng.toFixed(4)}`;
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(m);
+    // ======== DEĞİŞİKLİK BURADA: Gruplama anahtarı ve anonimlik vurgusu ========
+    // Eğer mood'un geocoded location bilgisi varsa, onu gruplama anahtarı olarak kullan.
+    // Anonimliği artırmak adına, eğer location stringi yoksa bu mood'u gruplama dışı bırakıyoruz.
+    // Bu, haritada yalnızca genel konum bilgisi olan mood'ların görünmesini sağlar.
+    const key = m.location && m.location.trim() !== '' 
+      ? m.location 
+      : null; 
+      
+    if (key) { // Yalnızca geçerli bir konum stringi varsa grupla
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(m);
+    }
+    // key null ise, bu mood gruplanmayacak ve dolayısıyla haritada görünmeyecektir.
+    // Bu, "genel konumda göster" prensibini katı bir şekilde uygular.
+    // =========================================================================
   });
-
-  // Kullanıcının mevcut konum ikonu için sabit bir ikon tanımlaması KULLANICI İSTEĞİ ÜZERİNE KALDIRILDI
-  /*
-  const userLocationIcon = L.divIcon({
-    html: `<div class="mood-marker-icon" style="font-size: 2.5rem; filter: drop-shadow(0 0 12px rgba(168,85,247,0.7));">&#128205;</div>`, // '📍' emoji code
-    className: '', // Kendi stilimiz .mood-marker-icon'da olduğu için Leaflet'ın varsayılanlarını devre dışı bırak
-    iconSize: [52, 52], // Dairenin boyutuna göre
-    iconAnchor: [26, 26], // Dairenin merkezini işaret et
-  });
-  */
 
   const createIcon = (emoji: string, count: number) => {
-    if (!L) return undefined; 
+    // if (!L) return undefined; // BU SATIR SİLİNDİ - dışarıda kontrol ediliyor
 
-    const moodCircleSize = 52; // Tüm özel marker'lar için tutarlı boyut
-    const iconAnchorOffset = moodCircleSize / 2; // Marker'ı merkezine hizalar
-
-    // Marker'ın mevcut kullanıcıya ait bir ruh hali olup olmadığını belirle
     const isCurrentUserSingleMood = count === 1 && moods.some(m => m.fid === fid && m.emoji === emoji);
     const filterShadow = `drop-shadow(0 0 12px ${isCurrentUserSingleMood ? 'rgba(168,85,247,0.7)' : 'black'})`;
 
     if (count === 1) {
-      // Tekli Mood: Yuvarlak stil için .mood-marker-icon sınıfını kullanır
-      // Emoji'nin boyutunu doğrudan HTML içinde ayarlarız (2.5rem olarak güncellendi).
       return L.divIcon({
         html: `<div class="mood-marker-icon" style="font-size: 2rem; ${filterShadow}">${emoji}</div>`,
-        className: "", // Leaflet'ın varsayılan className'ini devre dışı bırakır
-        iconSize: [moodCircleSize, moodCircleSize],
-        iconAnchor: [iconAnchorOffset, iconAnchorOffset],
+        className: "", 
+        iconSize: [MOOD_MARKER_SIZE, MOOD_MARKER_SIZE], // Sabit kullanıldı
+        iconAnchor: [MOOD_MARKER_ANCHOR_OFFSET, MOOD_MARKER_ANCHOR_OFFSET], // Sabit kullanıldı
       });
     }
 
-    // Gruplanmış Mood'lar: Sayıyı .mood-marker-icon dairesinin içine yerleştirir.
-    // Gruplanmış ikonlar için gölgeyi siyah yaparız.
     return L.divIcon({
-      html: `<div class="mood-marker-icon" style="font-size: 1.8rem; font-weight: bold; filter: drop-shadow(0 0 12px black);">${count}</div>`, // Kalın metinle sayı
-      className: "", // Leaflet'ın varsayılan className'ini devre dışı bırakır
-      iconSize: [moodCircleSize, moodCircleSize],
-      iconAnchor: [iconAnchorOffset, iconAnchorOffset],
+      html: `<div class="mood-marker-icon" style="font-size: 1.8rem; font-weight: bold; filter: drop-shadow(0 0 12px black);">${count}</div>`, 
+      className: "", 
+      iconSize: [MOOD_MARKER_SIZE, MOOD_MARKER_SIZE], // Sabit kullanıldı
+      iconAnchor: [MOOD_MARKER_ANCHOR_OFFSET, MOOD_MARKER_ANCHOR_OFFSET], // Sabit kullanıldı
     });
   };
 
@@ -310,10 +391,18 @@ export default function MapPage() {
 
           {userLocation && <FocusUserLocation location={userLocation} trigger={focusTrigger} />}
 
-          {/* LocationMarker bileşeni KULLANICI İSTEĞİ ÜZERİNE KALDIRILDI */}
-          {/* <LocationMarker setLocation={setUserLocation} location={userLocation} userLocationIcon={userLocationIcon} /> */}
-
           {Object.entries(groups).map(([groupKey, group]) => {
+            // ======== DEĞİŞİKLİK BURADA: Marker'ın konumu artık genel konuma bağlı ========
+            const markerCoords = geocodedGroupLocations[groupKey];
+            
+            if (!markerCoords) {
+              // Eğer bu grubun genel konumu henüz geocoded edilmediyse veya başarısız olduysa
+              // marker'ı gösterme. Bu, verilerin yüklenmesini beklediğimiz veya 
+              // anonimlik gereği tam koordinat göstermediğimiz anlamına gelir.
+              return null;
+            }
+            // =============================================================================
+
             const first = group[0]; 
             const currentUserMoodInGroup = group.find(m => m.fid === fid);
             const mainEmoji = currentUserMoodInGroup ? currentUserMoodInGroup.emoji : group[0].emoji; 
@@ -322,7 +411,7 @@ export default function MapPage() {
             return (
               <Marker
                 key={groupKey} 
-                position={[first.lat, first.lng]}
+                position={[markerCoords.lat, markerCoords.lng]} // Marker, genel konumun koordinatlarına yerleşecek
                 icon={L && L.divIcon ? createIcon(mainEmoji, count) : undefined}
               >
                 {/* ======== Popup'a offset={[0, -20]} eklendi ======== */}
@@ -343,9 +432,9 @@ export default function MapPage() {
                         >
                           <div className="text-4xl">{m.emoji}</div>
                           <div className="text-sm text-gray-300 flex-grow">
-                            {/* YENİ: Kullanıcı adı gösteriliyor */}
                             <div className="font-semibold text-white">{m.user_name}</div> 
                             {m.status && <div className="italic">&quot;{m.status}&quot;</div>}
+                            {m.location && <div className="text-gray-400 text-xs mt-1">{m.location}</div>} {/* Location bilgisini göster */}
                           </div>
                           {m.fid === fid && (
                               <span className="text-purple-300 font-bold text-xs px-2 py-1 bg-purple-900 rounded-full">You</span>
