@@ -4,7 +4,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import { createClient } from "@supabase/supabase-js";
-import { Loader2, MapPin } from "lucide-react"; 
+import { Loader2, MapPin, TestTube2 } from "lucide-react"; 
 import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import { toast, Toaster } from 'react-hot-toast'; 
@@ -34,7 +34,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Mood tipi (location eklendi)
+// ======== MOOD TİPİ GÜNCELLENDİ (location eklendi) ========
 export type Mood = { 
   id: string;
   emoji: string;
@@ -44,11 +44,41 @@ export type Mood = {
   fid: number; 
   user_id: string; 
   user_name: string; 
-  location: string | null; // Reverse geocoded konum stringi
+  location: string | null; // YENİ: Reverse geocoded konum stringi
   created_at: string;
 };
+// ==========================================================
 
-// Reverse Geocoding Fonksiyonu (Konum koordinatlarından isim almak için)
+// YENİ: Demo mood'ları için sabit veri
+const DEMO_MOODS_DATA: Mood[] = [
+  {
+    id: "demo-1", emoji: "😊", status: "Nice weather!", fid: 10001, user_id: "demo_user_1", user_name: "DemoUser1",
+    lat: 40.9934, lng: 29.0278, location: "Kadıköy, İstanbul, Türkiye", created_at: new Date(Date.now() - 3600000).toISOString()
+  },
+  {
+    id: "demo-2", emoji: "☕", status: "Coffee time", fid: 10002, user_id: "demo_user_2", user_name: "DemoUser2",
+    lat: 40.9876, lng: 29.0345, location: "Kadıköy, İstanbul, Türkiye", created_at: new Date(Date.now() - 7200000).toISOString()
+  },
+  {
+    id: "demo-3", emoji: "📚", status: "Reading a book", fid: 10003, user_id: "demo_user_3", user_name: "DemoUser3",
+    lat: 40.9991, lng: 29.0189, location: "Kadıköy, İstanbul, Türkiye", created_at: new Date(Date.now() - 10800000).toISOString()
+  },
+  {
+    id: "demo-4", emoji: "🥳", status: "Party time!", fid: 10004, user_id: "demo_user_4", user_name: "DemoUser4",
+    lat: 40.9900, lng: 29.0220, location: "Kadıköy, İstanbul, Türkiye", created_at: new Date(Date.now() - 14400000).toISOString()
+  },
+  {
+    id: "demo-5", emoji: "🌧️", status: "Rainy day", fid: 10005, user_id: "demo_user_5", user_name: "DemoUser5",
+    lat: 40.9850, lng: 29.0300, location: "Kadıköy, İstanbul, Türkiye", created_at: new Date(Date.now() - 18000000).toISOString()
+  },
+  { 
+    id: "demo-6", emoji: "⛰️", status: "Hiking", fid: 10006, user_id: "DemoUser6", user_name: "DemoUser6",
+    lat: 41.0082, lng: 28.9784, location: "Beyoğlu, İstanbul, Türkiye", created_at: new Date(Date.now() - 21600000).toISOString()
+  }
+];
+// ==========================================================
+
+// YENİ: Reverse Geocoding Fonksiyonu (Konum koordinatlarından isim almak için)
 async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
   const apiKey = process.env.NEXT_PUBLIC_OPENCAGE_API_KEY;
   if (!apiKey) {
@@ -63,8 +93,7 @@ async function reverseGeocode(lat: number, lng: number): Promise<string | null> 
     const data = await response.json();
     if (data.results && data.results.length > 0) {
       const components = data.results[0].components;
-      // 'locationParts' değişkeni 'const' olarak güncellendi.
-      const locationParts: string[] = []; 
+      const locationParts: string[] = []; // const olarak güncellendi
 
       if (components.city) locationParts.push(components.city);
       else if (components.town) locationParts.push(components.town);
@@ -86,7 +115,7 @@ async function reverseGeocode(lat: number, lng: number): Promise<string | null> 
   }
 }
 
-// Forward Geocoding Fonksiyonu (Konum isminden koordinat almak için)
+// YENİ: Forward Geocoding Fonksiyonu (Konum isminden koordinat almak için)
 async function forwardGeocode(locationString: string): Promise<{ lat: number; lng: number } | null> {
   const apiKey = process.env.NEXT_PUBLIC_OPENCAGE_API_KEY;
   if (!apiKey) {
@@ -145,6 +174,9 @@ export default function MapPage() {
   const [geocodedGroupLocations, setGeocodedGroupLocations] = useState<Record<string, { lat: number; lng: number }>>({});
   const geocodingCache = useRef<Record<string, { lat: number; lng: number } | null>>({});
 
+  // YENİ: Demo mood'ları gösterme state'i
+  const [showDemoMoods, setShowDemoMoods] = useState(false);
+
   const fid = user?.farcaster?.fid; 
   const privyUserId = user?.id; 
   const userName = user?.farcaster?.username;
@@ -155,6 +187,7 @@ export default function MapPage() {
     }
   }, [ready, authenticated, router]);
 
+  // fetchMoods fonksiyonu demo mood'ları içerecek şekilde güncellendi
   const fetchMoods = useCallback(async (focusOnUserAfterFetch = false) => {
     try {
       const { data, error } = await supabase.from("moods").select("*").order('created_at', { ascending: false }); 
@@ -164,10 +197,16 @@ export default function MapPage() {
         setMoods([]); 
         return;
       }
-      setMoods(data || []);
+      
+      let fetchedMoods = data || [];
+      // YENİ: Eğer demo mood'lar açıksa, onları da mevcut mood'lara ekle
+      if (showDemoMoods) {
+        fetchedMoods = [...DEMO_MOODS_DATA, ...fetchedMoods];
+      }
+      setMoods(fetchedMoods); // Güncellenmiş mood listesini state'e kaydet
 
       if (!initialMoodCheckPerformed.current && authenticated && fid !== undefined) {
-        const hasUserMood = data.some(m => m.fid === fid);
+        const hasUserMood = fetchedMoods.some(m => m.fid === fid); // Buradaki kontrol de güncellendi
         if (!hasUserMood) {
           setShowMoodOverlay(true);
           if (userLocation) {
@@ -184,7 +223,7 @@ export default function MapPage() {
       console.error("Unexpected error fetching moods:", e); 
       toast.error("An unexpected error occurred while loading moods: " + e.message);
     }
-  }, [authenticated, fid, userLocation]);
+  }, [authenticated, fid, userLocation, showDemoMoods]); // showDemoMoods bağımlılıklara eklendi
 
   useEffect(() => {
     Promise.all([import("leaflet"), import("leaflet/dist/leaflet.css")]).then(([leaflet]) => {
@@ -307,6 +346,7 @@ export default function MapPage() {
     if (showMoodOverlay) setShowMoodOverlay(false);
   };
 
+  // YENİ: userName'in de varlığını kontrol etmeliyiz
   if (!ready || !authenticated || fid === undefined || privyUserId === undefined || userName === undefined) {
     return (
         <div className="min-h-screen bg-gradient-to-b from-[#0f0f23] to-[#1a1a2e] flex flex-col items-center justify-center p-8 text-white">
@@ -336,9 +376,6 @@ export default function MapPage() {
   });
 
   const createIcon = (emoji: string, count: number) => {
-    // Sabitler kullanıldı
-    // if (!L) return undefined; // Bu satır dışarıda kontrol edildiği için silindi
-
     const isCurrentUserSingleMood = count === 1 && moods.some(m => m.fid === fid && m.emoji === emoji);
     const filterShadow = `drop-shadow(0 0 12px ${isCurrentUserSingleMood ? 'rgba(168,85,247,0.7)' : 'black'})`;
 
@@ -386,10 +423,7 @@ export default function MapPage() {
               return null;
             }
             
-            // 'first' değişkeni artık kullanılmadığı için kaldırıldı.
-            // const first = group[0]; 
             const currentUserMoodInGroup = group.find(m => m.fid === fid);
-            // 'group[0]' doğrudan kullanıldı.
             const mainEmoji = currentUserMoodInGroup ? currentUserMoodInGroup.emoji : group[0].emoji; 
             const count = group.length; 
 
@@ -401,12 +435,14 @@ export default function MapPage() {
               >
                 <Popup closeButton={false} className="custom-popup" offset={[0, -20]}> 
                   <div className="bg-[#0f0f23] p-6 rounded-3xl border border-purple-600 shadow-2xl min-w-[280px]">
-                    {count > 1 && (
+                    {/* BU KISIM KALDIRILDI: count > 1 koşuluna bağlı başlık */}
+                    {/* {count > 1 && (
                       <div className="text-center text-purple-400 font-bold mb-4 text-xl">
                         {count} vibes here!
                       </div>
-                    )}
-                    <div className="space-y-3">
+                    )} */}
+                    {/* Mood listesi artık mb-4 ile biraz boşluk alabilir */}
+                    <div className="space-y-3 max-h-[300px] overflow-y-auto scrollbar-hide mb-1"> 
                       {group.map((m) => (
                         <div
                           key={m.id}
@@ -434,8 +470,21 @@ export default function MapPage() {
         </MapContainer>
       </div>
 
-      {/* SABİT ALT BUTONLAR ALANI */}
+      {/* ======== SABİT ALT BUTONLAR ALANI ======== */}
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 z-[1000]">
+        {/* YENİ: Demo Moods Butonu */}
+        <Button
+          onClick={() => setShowDemoMoods(prev => {
+            toast.success(prev ? "Demo Moods Hidden" : "Demo Moods Shown");
+            return !prev;
+          })}
+          variant="secondary" 
+          className={`px-4 py-3 text-lg rounded-full backdrop-blur-md bg-slate-800/70 border ${showDemoMoods ? 'border-green-500 text-green-300' : 'border-slate-700 text-white'} shadow-xl hover:bg-slate-700/80 transition-colors`}
+        >
+          <TestTube2 size={20} className="mr-2" /> {showDemoMoods ? "Hide Demo" : "Show Demo"}
+        </Button>
+        {/* ========================================= */}
+
         <Button
           onClick={handleMapAction}
           variant="secondary" 
@@ -480,7 +529,7 @@ export default function MapPage() {
         </>
       )}
 
-      {/* MOOD FEED (ALTTAN KAYAN PANEL) */}
+      {/* ======== MOOD FEED (ALTTAN KAYAN PANEL) ======== */}
       <div
         className={`fixed inset-x-0 bottom-0 max-h-[80%] h-2/3 md:h-1/2 bg-slate-900/95 backdrop-blur-xl z-[990]
                     transform transition-transform duration-500 ease-in-out rounded-t-3xl
