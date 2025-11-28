@@ -545,16 +545,15 @@ const sendCast = (user as any)?.sendCast; // sendCast'i any ile al
           </Button>
         )}
 
-        {/* YENİ: Farcaster'a Cast Atma Butonu */}
-        // Cast butonu koşullu
-{authenticated && fid && currentUserLatestMood && sendCast && (
-  <Button
-    onClick={handleCastLatestMood}
-    className="px-6 py-3 text-lg rounded-full shadow-2xl bg-gradient-to-br from-blue-500 to-cyan-600 text-white transform hover:scale-105 transition-transform duration-200 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50"
-  >
-    <Send size={20} className="mr-2" /> Cast
-  </Button>
-)}
+                {/* YENİ: Farcaster'a Cast Atma Butonu */}
+        {authenticated && fid && currentUserLatestMood && sendCast && (
+          <Button
+            onClick={handleCastLatestMood}
+            className="px-6 py-3 text-lg rounded-full shadow-2xl bg-gradient-to-br from-blue-500 to-cyan-600 text-white transform hover:scale-105 transition-transform duration-200 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50"
+          >
+            <Send size={20} className="mr-2" /> Cast
+          </Button>
+        )}
 
         <Button
           onClick={() => setShowMoodOverlay(true)} 
