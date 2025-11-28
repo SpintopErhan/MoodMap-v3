@@ -1,15 +1,15 @@
 // app/map/page.tsx
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react"; 
 import dynamic from "next/dynamic";
 import { createClient } from "@supabase/supabase-js";
-import { Loader2, MapPin, TestTube2 } from "lucide-react"; 
+import { Loader2, MapPin, TestTube2, Send } from "lucide-react"; 
 import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import { toast, Toaster } from 'react-hot-toast'; 
 
-// Bileşenlerin importları. tsconfig.json'daki paths ayarı ( @/*": ["./src/*/*"] ) dikkate alınmıştır.
+// Bileşenlerin importları. tsconfig.json'daki paths ayarı ( @/*": ["./src/*"] ) dikkate alınmıştır.
 import MoodUpdateOverlay from "@/components/MoodUpdateOverlay"; 
 import { Button } from "@/components/Button"; 
 import { MoodFeed } from "@/components/MoodFeed"; 
@@ -93,7 +93,7 @@ async function reverseGeocode(lat: number, lng: number): Promise<string | null> 
     const data = await response.json();
     if (data.results && data.results.length > 0) {
       const components = data.results[0].components;
-      const locationParts: string[] = []; // const olarak güncellendi
+      const locationParts: string[] = []; 
 
       if (components.city) locationParts.push(components.city);
       else if (components.town) locationParts.push(components.town);
@@ -155,7 +155,7 @@ const FocusUserLocation: React.FC<{ location: { lat: number; lng: number }, trig
 
 export default function MapPage() {
   const router = useRouter();
-  const { ready, authenticated, user } = usePrivy(); 
+  const { ready, authenticated, user, sendCast } = usePrivy(); 
 
   const [moods, setMoods] = useState<Mood[]>([]);
   const [L, setL] = useState<any>(null); // Leaflet objesini tutar
@@ -174,18 +174,37 @@ export default function MapPage() {
   const [geocodedGroupLocations, setGeocodedGroupLocations] = useState<Record<string, { lat: number; lng: number }>>({});
   const geocodingCache = useRef<Record<string, { lat: number; lng: number } | null>>({});
 
-  // Demo mood'ları gösterme state'i
-  // const [showDemoMoods, setShowDemoMoods] = useState(false); // Bu satır kaldırıldı.
-
   const fid = user?.farcaster?.fid; 
   const privyUserId = user?.id; 
   const userName = user?.farcaster?.username;
 
   // Ortam değişkenini kontrol et
   const showDemoButton = process.env.NEXT_PUBLIC_ENABLE_DEMO_BUTTON === 'true';
-  // Demo mood'ları gösterip göstermeme mantığı artık sadece butona bağlı değil,
-  // ortam değişkeni kapalıysa butona basılsa bile gösterilmemeli.
-  const [showDemoMoods, setShowDemoMoods] = useState(showDemoButton); // Başlangıçta ortam değişkenine göre ayarla
+  const [showDemoMoods, setShowDemoMoods] = useState(showDemoButton); 
+
+  // Mevcut kullanıcının en son mood'unu bulmak için useMemo kullanıldı
+  const currentUserLatestMood = useMemo(() => {
+    if (!fid || !moods.length) return null;
+    const userMoods = moods.filter(m => m.fid === fid);
+    return userMoods.length > 0 ? userMoods[0] : null; 
+  }, [moods, fid]);
+
+  // ======== Hata Ayıklama Logları Başlangıcı ========
+  useEffect(() => {
+    console.log("Cast Button Conditions:");
+    console.log("  - Authenticated:", authenticated);
+    console.log("  - Farcaster FID:", fid);
+    console.log("  - sendCast available:", !!sendCast); // sendCast fonksiyonu var mı? (boolean olarak)
+    console.log("  - currentUserLatestMood:", currentUserLatestMood);
+    if (currentUserLatestMood) {
+      console.log("    - currentUserLatestMood.id:", currentUserLatestMood.id);
+      console.log("    - currentUserLatestMood.fid (matched):", currentUserLatestMood.fid === fid);
+    }
+    const canShowCastButton = authenticated && fid !== undefined && !!sendCast && !!currentUserLatestMood;
+    console.log("  - Overall canShowCastButton:", canShowCastButton);
+  }, [authenticated, fid, sendCast, currentUserLatestMood]);
+  // ======== Hata Ayıklama Logları Sonu ========
+
 
   useEffect(() => {
     if (ready && !authenticated) {
@@ -193,7 +212,6 @@ export default function MapPage() {
     }
   }, [ready, authenticated, router]);
 
-  // fetchMoods fonksiyonu demo mood'ları içerecek şekilde güncellendi
   const fetchMoods = useCallback(async (focusOnUserAfterFetch = false) => {
     try {
       const { data, error } = await supabase.from("moods").select("*").order('created_at', { ascending: false }); 
@@ -205,14 +223,13 @@ export default function MapPage() {
       }
       
       let fetchedMoods = data || [];
-      // YENİ: Eğer demo mood'lar açıksa (state'e göre) ve ortam değişkeni demo'yu destekliyorsa, onları da mevcut mood'lara ekle
-      if (showDemoMoods && showDemoButton) { // Hem state hem de ortam değişkeni kontrolü
+      if (showDemoMoods && showDemoButton) { 
         fetchedMoods = [...DEMO_MOODS_DATA, ...fetchedMoods];
       }
-      setMoods(fetchedMoods); // Güncellenmiş mood listesini state'e kaydet
+      setMoods(fetchedMoods); 
 
       if (!initialMoodCheckPerformed.current && authenticated && fid !== undefined) {
-        const hasUserMood = fetchedMoods.some(m => m.fid === fid); // Buradaki kontrol de güncellendi
+        const hasUserMood = fetchedMoods.some(m => m.fid === fid); 
         if (!hasUserMood) {
           setShowMoodOverlay(true);
           if (userLocation) {
@@ -229,7 +246,7 @@ export default function MapPage() {
       console.error("Unexpected error fetching moods:", e); 
       toast.error("An unexpected error occurred while loading moods: " + e.message);
     }
-  }, [authenticated, fid, userLocation, showDemoMoods, showDemoButton]); // showDemoButton bağımlılıklara eklendi
+  }, [authenticated, fid, userLocation, showDemoMoods, showDemoButton]); 
 
   useEffect(() => {
     Promise.all([import("leaflet"), import("leaflet/dist/leaflet.css")]).then(([leaflet]) => {
@@ -251,7 +268,6 @@ export default function MapPage() {
     );
   }, []); 
 
-  // userLocation güncellendiğinde reverse geocoding yap
   useEffect(() => {
     if (userLocation) {
       const getGeocodedLocation = async () => {
@@ -264,7 +280,6 @@ export default function MapPage() {
     }
   }, [userLocation]); 
 
-  // mood'lar değiştiğinde benzersiz konumlar için forward geocoding yap
   useEffect(() => {
     const uniqueLocations = Array.from(new Set(moods.map(m => m.location).filter(Boolean) as string[]));
     
@@ -325,7 +340,7 @@ export default function MapPage() {
         console.error("Upsert Error (Supabase response):", upsertError); 
         toast.error("Failed to share mood: " + upsertError.message);
       } else {
-        toast.success("Vibe successfully shared! 🌍");
+        toast.success("Vibe successfully shared! 🌍 You can now cast it to Farcaster!");
       }
       
       fetchMoods(true); 
@@ -337,6 +352,38 @@ export default function MapPage() {
       setLoading(false);
     }
   };
+
+  const handleCastLatestMood = async () => {
+    if (!authenticated || !sendCast || !currentUserLatestMood || !userName) {
+      toast.error("You need to be logged in and have a mood to cast.");
+      return;
+    }
+
+    try {
+      let castText = `${currentUserLatestMood.emoji} ${userName} is feeling this vibe`;
+      if (currentUserLatestMood.status) {
+        castText += `: "${currentUserLatestMood.status.slice(0, MOOD_STATUS_MAX_LENGTH)}"`;
+      }
+      if (currentUserLatestMood.location) {
+        castText += ` from ${currentUserLatestMood.location}`;
+      }
+      castText += ` #MoodMap`; 
+      
+      castText += `\n\nShare your daily mood too!`;
+
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://moodmap.vercel.app'; 
+      if (appUrl) {
+        castText += `\n${appUrl}`; 
+      }
+      
+      await sendCast({ text: castText });
+      toast.success("Mood successfully cast to Farcaster! ✨");
+    } catch (castError: any) {
+      console.error("Farcaster cast error:", castError);
+      toast.error("Failed to cast to Farcaster: " + castError.message);
+    }
+  };
+
 
   const handleMapAction = () => {
     if (userLocation) {
@@ -352,7 +399,6 @@ export default function MapPage() {
     if (showMoodOverlay) setShowMoodOverlay(false);
   };
 
-  // YENİ: userName'in de varlığını kontrol etmeliyiz
   if (!ready || !authenticated || fid === undefined || privyUserId === undefined || userName === undefined) {
     return (
         <div className="min-h-screen bg-gradient-to-b from-[#0f0f23] to-[#1a1a2e] flex flex-col items-center justify-center p-8 text-white">
@@ -441,7 +487,6 @@ export default function MapPage() {
               >
                 <Popup closeButton={false} className="custom-popup" offset={[0, -20]}> 
                   <div className="bg-[#0f0f23] p-6 rounded-3xl border border-purple-600 shadow-2xl min-w-[280px]">
-                    {/* Mood listesi artık mb-4 ile biraz boşluk alabilir */}
                     <div className="space-y-3 max-h-[300px] overflow-y-auto scrollbar-hide mb-1"> 
                       {group.map((m) => (
                         <div
@@ -470,9 +515,22 @@ export default function MapPage() {
         </MapContainer>
       </div>
 
+      {/* ======== YENİ: Harita Butonu (Sağ Üst Köşede) ======== */}
+      {authenticated && userLocation && ( 
+        <div className="fixed top-16 right-4 z-[1000]"> 
+          <Button
+            onClick={handleMapAction}
+            variant="secondary"
+            className="w-14 h-14 rounded-full backdrop-blur-md bg-slate-800/70 border border-slate-700 text-white shadow-xl hover:bg-slate-700/80 transition-colors flex items-center justify-center" 
+          >
+            <MapPin size={28} /> 
+          </Button>
+        </div>
+      )}
+      {/* ==================================================== */}
+
       {/* ======== SABİT ALT BUTONLAR ALANI ======== */}
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 z-[1000]">
-        {/* YENİ: Demo Moods Butonu - SADECE NEXT_PUBLIC_ENABLE_DEMO_BUTTON=true ise göster */}
         {showDemoButton && (
           <Button
             onClick={() => setShowDemoMoods(prev => {
@@ -485,15 +543,16 @@ export default function MapPage() {
             <TestTube2 size={20} className="mr-2" /> {showDemoMoods ? "Hide Demo" : "Show Demo"}
           </Button>
         )}
-        {/* ========================================= */}
 
-        <Button
-          onClick={handleMapAction}
-          variant="secondary" 
-          className="px-6 py-3 text-lg rounded-full backdrop-blur-md bg-slate-800/70 border border-slate-700 text-white shadow-xl hover:bg-slate-700/80 transition-colors"
-        >
-          <MapPin size={20} className="mr-2" /> Map 
-        </Button>
+        {/* YENİ: Farcaster'a Cast Atma Butonu */}
+        {authenticated && fid !== undefined && !!sendCast && !!currentUserLatestMood && (
+          <Button
+            onClick={handleCastLatestMood}
+            className="px-6 py-3 text-lg rounded-full shadow-2xl bg-gradient-to-br from-blue-500 to-cyan-600 text-white transform hover:scale-105 transition-transform duration-200 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50"
+          >
+            <Send size={20} className="mr-2" /> Cast
+          </Button>
+        )}
 
         <Button
           onClick={() => setShowMoodOverlay(true)} 

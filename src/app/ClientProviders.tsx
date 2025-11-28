@@ -1,7 +1,7 @@
 "use client";
 
 import { PrivyProvider } from "@privy-io/react-auth";
-import ClientProvider from "./ClientProvider"; // sdk.actions.ready için
+import ClientProvider from "./ClientProvider";
 
 export default function ClientProviders({
   children,
@@ -14,6 +14,12 @@ export default function ClientProviders({
       config={{
         loginMethods: ["farcaster"],
         appearance: { theme: "dark" },
+
+        // === SENDCAST İÇİN ZORUNLU AYAR ===
+        embeddedWallets: {
+          createOnLogin: "all-users", // BU SATIR SENDCAST’İ AKTİF EDİYOR!
+        },
+        // === BU KISIM YOKSA SENDCAST GELMEZ ===
       }}
     >
       <ClientProvider>{children}</ClientProvider>
