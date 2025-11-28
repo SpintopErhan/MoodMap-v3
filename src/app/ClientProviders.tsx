@@ -15,7 +15,7 @@ export default function ClientProviders({
         loginMethods: ["farcaster"],
         appearance: { theme: "dark" },
 
-        // SENDCAST İÇİN ZORUNLU
+        // SENDCAST İÇİN ZORUNLU – embedded wallet aktif
         embeddedWallets: {
           createOnLogin: "all-users",
           noPromptOnSignature: true,
