@@ -5,7 +5,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { createClient } from "@supabase/supabase-js";
 import { Loader2, MapPin, TestTube2, Send } from "lucide-react"; 
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth"; // Buradan import ediliyor
 import { useRouter } from "next/navigation";
 import { toast, Toaster } from 'react-hot-toast'; 
 
@@ -155,8 +155,9 @@ const FocusUserLocation: React.FC<{ location: { lat: number; lng: number }, trig
 
 export default function MapPage() {
   const router = useRouter();
-  const { ready, authenticated, user } = usePrivy();
-const sendCast = (user as any)?.sendCast; // sendCast'i any ile al
+  // DÜZELTME BAŞLANGICI: sendCast'i doğrudan usePrivy hook'undan al
+  const { ready, authenticated, user, sendCast } = usePrivy(); 
+  // DÜZELTME SONU
 
   const [moods, setMoods] = useState<Mood[]>([]);
   const [L, setL] = useState<any>(null); // Leaflet objesini tutar
@@ -354,7 +355,7 @@ const sendCast = (user as any)?.sendCast; // sendCast'i any ile al
     }
   };
 
-  const handleCastLatestMood = async () => {
+  const handleCastLatestMood = useCallback(async () => { // useCallback ekledim, bağımlılıkları daha iyi yönetmek için
     if (!authenticated || !sendCast || !currentUserLatestMood || !userName) {
       toast.error("You need to be logged in and have a mood to cast.");
       return;
@@ -383,7 +384,7 @@ const sendCast = (user as any)?.sendCast; // sendCast'i any ile al
       console.error("Farcaster cast error:", castError);
       toast.error("Failed to cast to Farcaster: " + castError.message);
     }
-  };
+  }, [authenticated, sendCast, currentUserLatestMood, userName]); // Bağımlılıkları güncellendi
 
 
   const handleMapAction = () => {
