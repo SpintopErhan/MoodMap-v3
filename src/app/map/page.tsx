@@ -155,7 +155,8 @@ const FocusUserLocation: React.FC<{ location: { lat: number; lng: number }, trig
 
 export default function MapPage() {
   const router = useRouter();
-  const { ready, authenticated, user, sendCast } = usePrivy(); 
+  const { ready, authenticated, user } = usePrivy();
+const sendCast = (user as any)?.sendCast; // sendCast'i any ile al
 
   const [moods, setMoods] = useState<Mood[]>([]);
   const [L, setL] = useState<any>(null); // Leaflet objesini tutar
@@ -545,14 +546,15 @@ export default function MapPage() {
         )}
 
         {/* YENİ: Farcaster'a Cast Atma Butonu */}
-        {authenticated && fid !== undefined && !!sendCast && !!currentUserLatestMood && (
-          <Button
-            onClick={handleCastLatestMood}
-            className="px-6 py-3 text-lg rounded-full shadow-2xl bg-gradient-to-br from-blue-500 to-cyan-600 text-white transform hover:scale-105 transition-transform duration-200 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50"
-          >
-            <Send size={20} className="mr-2" /> Cast
-          </Button>
-        )}
+        // Cast butonu koşullu
+{authenticated && fid && currentUserLatestMood && sendCast && (
+  <Button
+    onClick={handleCastLatestMood}
+    className="px-6 py-3 text-lg rounded-full shadow-2xl bg-gradient-to-br from-blue-500 to-cyan-600 text-white transform hover:scale-105 transition-transform duration-200 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50"
+  >
+    <Send size={20} className="mr-2" /> Cast
+  </Button>
+)}
 
         <Button
           onClick={() => setShowMoodOverlay(true)} 

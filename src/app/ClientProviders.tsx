@@ -14,12 +14,10 @@ export default function ClientProviders({
       config={{
         loginMethods: ["farcaster"],
         appearance: { theme: "dark" },
-
-        // === SENDCAST İÇİN ZORUNLU AYAR ===
+        // Embedded wallet'ı aktif et – cast atma için zorunlu
         embeddedWallets: {
-          createOnLogin: "all-users", // BU SATIR SENDCAST’İ AKTİF EDİYOR!
+          createOnLogin: "all-users", // Her login'de wallet yaratır
         },
-        // === BU KISIM YOKSA SENDCAST GELMEZ ===
       }}
     >
       <ClientProvider>{children}</ClientProvider>
