@@ -2,6 +2,7 @@
 
 import { PrivyProvider } from "@privy-io/react-auth";
 import ClientProvider from "./ClientProvider";
+import { base, ethereum } from "@privy-io/react-auth/chains"; // ← BU SATIRI EKLE
 
 export default function ClientProviders({
   children,
@@ -14,10 +15,15 @@ export default function ClientProviders({
       config={{
         loginMethods: ["farcaster"],
         appearance: { theme: "dark" },
-        // Embedded wallet'ı aktif et – cast atma için zorunlu
+
+        // SENDCAST İÇİN ZORUNLU
         embeddedWallets: {
-          createOnLogin: "all-users", // Her login'de wallet yaratır
+          createOnLogin: "all-users",
+          noPromptOnSignature: true,
         },
+
+        // supportedChains → doğru tipte (Chain[])
+        supportedChains: [ethereum, base], // ← BU ŞEKİLDE YAZ
       }}
     >
       <ClientProvider>{children}</ClientProvider>
