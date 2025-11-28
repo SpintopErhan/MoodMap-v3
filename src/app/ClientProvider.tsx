@@ -1,8 +1,6 @@
-// src/app/ClientProvider.tsx
 "use client";
 
-import { useEffect } from "react";
-import { sdk } from "@farcaster/miniapp-sdk";
+import { useEffect } from "react"; // ← BU SATIRI EKLE!
 
 export default function ClientProvider({
   children,
@@ -10,19 +8,14 @@ export default function ClientProvider({
   children: React.ReactNode;
 }) {
   useEffect(() => {
-    // SDK’nın yeni versiyonunda splash otomatik kapanıyor
-    // Ama bazı preview’larda kapanmayabiliyor, o yüzden zorla kapatıyoruz
-    // setTimeout kaldırıldı, böylece ready() çağrısı daha erken yapılıyor
-    if (typeof (sdk as any).actions?.ready === "function") {
-      (sdk as any).actions.ready();
-      console.log("Farcaster Mini-app SDK marked as ready."); // Ek log
-    } else {
-      console.warn("Farcaster Mini-app SDK actions.ready is not a function.");
+    // Sadece Farcaster Mini App içinde splash'ı kapat
+    if (typeof window !== "undefined" && (window as any).farcaster) {
+      if (typeof (window as any).farcaster.actions?.ready === "function") {
+        (window as any).farcaster.actions.ready();
+        console.log("Farcaster Mini App – SDK ready called");
+      }
     }
-
-    // Artık timeout olmadığı için cleanup da gerekli değil.
-    // return () => clearTimeout(forceReady); // Bu satır kaldırıldı
-  }, []); // Bağımlılık dizisi boş kalmalı
+  }, []);
 
   return <>{children}</>;
 }
