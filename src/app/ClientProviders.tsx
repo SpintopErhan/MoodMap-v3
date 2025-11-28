@@ -1,6 +1,6 @@
+// src\app\ClientProviders.tsx
 "use client";
 
-import { PrivyProvider } from "@privy-io/react-auth";
 import ClientProvider from "./ClientProvider";
 
 export default function ClientProviders({
@@ -9,20 +9,8 @@ export default function ClientProviders({
   children: React.ReactNode;
 }) {
   return (
-    <PrivyProvider
-      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID!}
-      config={{
-        loginMethods: ["farcaster"],
-        appearance: { theme: "dark" },
-
-        // SENDCAST İÇİN ZORUNLU – embedded wallet aktif
-        embeddedWallets: {
-          createOnLogin: "all-users",
-          noPromptOnSignature: true,
-        },
-      }}
-    >
-      <ClientProvider>{children}</ClientProvider>
-    </PrivyProvider>
+    <ClientProvider>
+      {children}
+    </ClientProvider>
   );
 }

@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@farcaster/miniapp-sdk": "^0.2.1",
-    "@privy-io/react-auth": "^1.76.1",
     "@radix-ui/react-slot": "^1.2.4",
     "@standard-crypto/farcaster-js": "^7.4.0",
     "@supabase/supabase-js": "^2.84.0",

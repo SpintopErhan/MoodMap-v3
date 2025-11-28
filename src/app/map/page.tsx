@@ -5,7 +5,6 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { createClient } from "@supabase/supabase-js";
 import { Loader2, MapPin, TestTube2, Send } from "lucide-react"; 
-import { usePrivy } from "@privy-io/react-auth"; // Buradan import ediliyor
 import { useRouter } from "next/navigation";
 import { toast, Toaster } from 'react-hot-toast'; 
 
@@ -155,9 +154,8 @@ const FocusUserLocation: React.FC<{ location: { lat: number; lng: number }, trig
 
 export default function MapPage() {
   const router = useRouter();
-  // DÜZELTME BAŞLANGICI: sendCast'i doğrudan usePrivy hook'undan al
-  const { ready, authenticated, user, sendCast } = usePrivy(); 
-  // DÜZELTME SONU
+  const [farcasterUser, setFarcasterUser] = useState<{ fid: number; username: string; display_name: string; pfp_url: string } | null>(null);
+  const [isFarcasterMiniApp, setIsFarcasterMiniApp] = useState(false);
 
   const [moods, setMoods] = useState<Mood[]>([]);
   const [L, setL] = useState<any>(null); // Leaflet objesini tutar
@@ -172,47 +170,67 @@ export default function MapPage() {
   
   const initialMoodCheckPerformed = useRef(false); 
 
-  // Gruplanmış konumların koordinatlarını tutacak state ve cache
   const [geocodedGroupLocations, setGeocodedGroupLocations] = useState<Record<string, { lat: number; lng: number }>>({});
   const geocodingCache = useRef<Record<string, { lat: number; lng: number } | null>>({});
 
-  const fid = user?.farcaster?.fid; 
-  const privyUserId = user?.id; 
-  const userName = user?.farcaster?.username;
+  const fid = farcasterUser?.fid; 
+  const privyUserId = farcasterUser?.fid ? `fc_user_${farcasterUser.fid}` : undefined; 
+  const userName = farcasterUser?.username;
 
-  // Ortam değişkenini kontrol et
   const showDemoButton = process.env.NEXT_PUBLIC_ENABLE_DEMO_BUTTON === 'true';
   const [showDemoMoods, setShowDemoMoods] = useState(showDemoButton); 
 
-  // Mevcut kullanıcının en son mood'unu bulmak için useMemo kullanıldı
   const currentUserLatestMood = useMemo(() => {
     if (!fid || !moods.length) return null;
     const userMoods = moods.filter(m => m.fid === fid);
     return userMoods.length > 0 ? userMoods[0] : null; 
   }, [moods, fid]);
 
+ // Farcaster Mini App'ten kullanıcı bilgilerini al
+useEffect(() => {
+  // window.farcaster sadece Mini App'te var → any ile güvenli kontrol
+  const farcaster = (window as any).farcaster;
+
+  if (farcaster?.getUser) {
+    setIsFarcasterMiniApp(true);
+
+    const getUserInfo = async () => {
+      try {
+        const user = await farcaster.getUser();
+        if (user) {
+          setFarcasterUser(user);
+        } else {
+          router.replace("/");
+        }
+      } catch (error) {
+        console.error("Farcaster user info fetching error:", error);
+        router.replace("/");
+      }
+    };
+
+    getUserInfo();
+  } else {
+    setIsFarcasterMiniApp(false);
+    router.replace("/");
+  }
+}, [router]);
+
   // ======== Hata Ayıklama Logları Başlangıcı ========
   useEffect(() => {
     console.log("Cast Button Conditions:");
-    console.log("  - Authenticated:", authenticated);
+    console.log("  - Farcaster Mini App:", isFarcasterMiniApp);
     console.log("  - Farcaster FID:", fid);
-    console.log("  - sendCast available:", !!sendCast); // sendCast fonksiyonu var mı? (boolean olarak)
+    // window.farcaster.actions.sendCast kontrolü hala doğru
+    console.log("  - Farcaster SDK actions.sendCast available:", typeof window !== "undefined" && !!window.farcaster?.actions?.sendCast); 
     console.log("  - currentUserLatestMood:", currentUserLatestMood);
     if (currentUserLatestMood) {
       console.log("    - currentUserLatestMood.id:", currentUserLatestMood.id);
       console.log("    - currentUserLatestMood.fid (matched):", currentUserLatestMood.fid === fid);
     }
-    const canShowCastButton = authenticated && fid !== undefined && !!sendCast && !!currentUserLatestMood;
+    const canShowCastButton = isFarcasterMiniApp && fid !== undefined && typeof window !== "undefined" && !!window.farcaster?.actions?.sendCast && !!currentUserLatestMood;
     console.log("  - Overall canShowCastButton:", canShowCastButton);
-  }, [authenticated, fid, sendCast, currentUserLatestMood]);
+  }, [isFarcasterMiniApp, fid, currentUserLatestMood]);
   // ======== Hata Ayıklama Logları Sonu ========
-
-
-  useEffect(() => {
-    if (ready && !authenticated) {
-      router.replace("/");
-    }
-  }, [ready, authenticated, router]);
 
   const fetchMoods = useCallback(async (focusOnUserAfterFetch = false) => {
     try {
@@ -230,8 +248,8 @@ export default function MapPage() {
       }
       setMoods(fetchedMoods); 
 
-      if (!initialMoodCheckPerformed.current && authenticated && fid !== undefined) {
-        const hasUserMood = fetchedMoods.some(m => m.fid === fid); 
+      if (!initialMoodCheckPerformed.current && farcasterUser) {
+        const hasUserMood = fetchedMoods.some(m => m.fid === farcasterUser.fid); 
         if (!hasUserMood) {
           setShowMoodOverlay(true);
           if (userLocation) {
@@ -248,7 +266,21 @@ export default function MapPage() {
       console.error("Unexpected error fetching moods:", e); 
       toast.error("An unexpected error occurred while loading moods: " + e.message);
     }
-  }, [authenticated, fid, userLocation, showDemoMoods, showDemoButton]); 
+  }, [farcasterUser, userLocation, showDemoMoods, showDemoButton]); 
+
+  useEffect(() => {
+    if (!isFarcasterMiniApp || !farcasterUser) {
+      return; 
+    }
+    fetchMoods(); 
+  }, [isFarcasterMiniApp, farcasterUser, fetchMoods]); 
+
+  useEffect(() => {
+    if (isFarcasterMiniApp && farcasterUser) { 
+      fetchMoods(); 
+    }
+  }, [isFarcasterMiniApp, farcasterUser, fetchMoods]); 
+
 
   useEffect(() => {
     Promise.all([import("leaflet"), import("leaflet/dist/leaflet.css")]).then(([leaflet]) => {
@@ -309,15 +341,9 @@ export default function MapPage() {
     }
   }, [moods]); 
 
-  useEffect(() => {
-    if (ready && authenticated && fid !== undefined) {
-      fetchMoods(); 
-    }
-  }, [ready, authenticated, fid, fetchMoods]); 
-
   const handleSubmitMood = async (emoji: string, status: string) => { 
     if (!emoji || !userLocation || fid === undefined || privyUserId === undefined || userName === undefined) { 
-      toast.error("Please select an emoji, grant location access, and log in with Farcaster.");
+      toast.error("Please select an emoji, grant location access, and ensure you're logged in with Farcaster.");
       return;
     }
     
@@ -355,9 +381,10 @@ export default function MapPage() {
     }
   };
 
-  const handleCastLatestMood = useCallback(async () => { // useCallback ekledim, bağımlılıkları daha iyi yönetmek için
-    if (!authenticated || !sendCast || !currentUserLatestMood || !userName) {
-      toast.error("You need to be logged in and have a mood to cast.");
+  const handleCastLatestMood = useCallback(async () => { 
+    // Doğrudan window.farcaster.actions.sendCast kullanıyoruz
+    if (!isFarcasterMiniApp || !window.farcaster?.actions?.sendCast || !currentUserLatestMood || !userName) {
+      toast.error("You need to be in a Farcaster Mini App and have a mood to cast.");
       return;
     }
 
@@ -371,49 +398,47 @@ export default function MapPage() {
       }
       castText += ` #MoodMap`; 
       
-      castText += `\n\nShare your daily mood too!`;
-
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://moodmap.vercel.app'; 
       if (appUrl) {
         castText += `\n${appUrl}`; 
       }
       
-      await sendCast({ text: castText });
+      // window.farcaster.actions.sendCast çağrısı doğru yolda
+      await window.farcaster.actions.sendCast({ text: castText });
       toast.success("Mood successfully cast to Farcaster! ✨");
     } catch (castError: any) {
       console.error("Farcaster cast error:", castError);
       toast.error("Failed to cast to Farcaster: " + castError.message);
     }
-  }, [authenticated, sendCast, currentUserLatestMood, userName]); // Bağımlılıkları güncellendi
+  }, [isFarcasterMiniApp, currentUserLatestMood, userName]); 
 
 
-  const handleMapAction = () => {
+  const handleMapAction = useCallback(() => { 
     if (userLocation) {
       setFocusTrigger(prev => prev + 1); 
     }
     setShowMoodOverlay(false);
     setIsMoodFeedOpen(false);
     toast.success("Map focused on your location.");
-  };
+  }, [userLocation]); 
 
-  const handleToggleMoodFeed = () => {
+  const handleToggleMoodFeed = useCallback(() => { 
     setIsMoodFeedOpen((prev) => !prev);
     if (showMoodOverlay) setShowMoodOverlay(false);
-  };
+  }, [showMoodOverlay]);
 
-  if (!ready || !authenticated || fid === undefined || privyUserId === undefined || userName === undefined) {
+
+  if (!isFarcasterMiniApp || !farcasterUser) {
     return (
         <div className="min-h-screen bg-gradient-to-b from-[#0f0f23] to-[#1a1a2e] flex flex-col items-center justify-center p-8 text-white">
             <Loader2 className="animate-spin text-purple-400 w-16 h-16 mb-4" />
             <p className="text-xl text-center">
-              { !ready ? "Loading..." :
-                !authenticated ? "Logging in..." :
-                "Awaiting user info..."
-              }
+              {!isFarcasterMiniApp ? "Please open this app in a Farcaster client." : "Authenticating Farcaster user..."}
             </p>
         </div>
     );
   }
+
 
   if (!L) return <div className="h-screen bg-black flex items-center justify-center text-white text-2xl">Loading map...</div>;
 
@@ -518,7 +543,7 @@ export default function MapPage() {
       </div>
 
       {/* ======== YENİ: Harita Butonu (Sağ Üst Köşede) ======== */}
-      {authenticated && userLocation && ( 
+      {farcasterUser && userLocation && ( 
         <div className="fixed top-16 right-4 z-[1000]"> 
           <Button
             onClick={handleMapAction}
@@ -547,7 +572,7 @@ export default function MapPage() {
         )}
 
                 {/* YENİ: Farcaster'a Cast Atma Butonu */}
-        {authenticated && fid && currentUserLatestMood && sendCast && (
+        {farcasterUser && currentUserLatestMood && isFarcasterMiniApp && typeof window !== "undefined" && window.farcaster?.actions?.sendCast && (
           <Button
             onClick={handleCastLatestMood}
             className="px-6 py-3 text-lg rounded-full shadow-2xl bg-gradient-to-br from-blue-500 to-cyan-600 text-white transform hover:scale-105 transition-transform duration-200 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50"
